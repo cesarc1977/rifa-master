@@ -224,7 +224,49 @@ async function loadDashboard(){
 }
 
 async function loadPayments(){try{const rows=await run('obtenerPagosPendientes',token);if(!rows.length){$('paymentsBox').innerHTML='<div class="notice">No hay pagos pendientes o aprobados.</div>';return}let h='<div class="table-wrap"><table class="table"><thead><tr><th>Pedido</th><th>Método</th><th>Monto</th><th>Estado</th><th>Comprobante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>';rows.forEach(p=>{const ok=String(p.estado||'').toUpperCase()==='APROBADO';h+=`<tr><td><b>${esc(p.idPedido)}</b></td><td>${esc(p.metodo)}</td><td>${money(p.monto)}</td><td>${status(p.estado)}</td><td>${p.comprobante?`<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`:'—'}</td><td>${esc(p.fechaPago)}</td><td><div class="actions">${ok?`<button class="btn primary small" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:`<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button><button class="btn danger small" onclick="reject('${esc(p.idPago)}')">Rechazar</button>`}</div></td></tr>`});$('paymentsBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
-async function generateTicket(idPedido){try{const r=await run('generarBoletoPagoAprobado',token,idPedido);openModal(`<h3>🎟️ Boleto generado</h3><p class="sub">Números: <b>${esc((r.numeros||[]).join(', '))}</b></p><p><a class="btn primary" href="${esc(r.url)}" target="_blank">Abrir boleto PDF</a> <button class="btn ghost" onclick="window.open('${esc(r.whatsappUrl)}','_blank')">💬 WhatsApp</button></p>`);toast(r.mensaje)}catch(e){toast(err(e))}}
+async function generateTicket(idPedido){
+  try{
+    toast('Generando boleto PDF...');
+    const r=await run('generarBoletoPagoAprobado',token,idPedido);
+    const nums=esc((r.numeros||[]).join(', '));
+    const img=r.imagenPremio
+      ? `<img src="${esc(r.imagenPremio)}" alt="Premio" style="width:100%;max-height:220px;object-fit:contain;border-radius:14px;background:#071a2e;padding:8px">`
+      : '';
+
+    openModal(`
+      <div style="max-width:760px">
+        <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
+          <div>
+            <h3 style="margin:0">🎟️ Boleto oficial generado</h3>
+            <p class="sub">PDF moderno listo para entregar al cliente.</p>
+          </div>
+          <span class="status aprobado">APROBADO</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,1.2fr);gap:14px;margin-top:16px">
+          <div>${img}</div>
+          <div class="card" style="margin:0">
+            <div class="sub">Cliente</div><b>${esc(r.cliente||'')}</b>
+            <div class="sub" style="margin-top:10px">Rifa</div><b>${esc(r.rifa||'')}</b>
+            <div class="sub" style="margin-top:10px">Número(s)</div><div style="font-size:24px;font-weight:900;color:#39bdf8">${nums}</div>
+            <div class="sub" style="margin-top:10px">Monto</div><b>${money(r.monto||0)}</b>
+            <div class="sub" style="margin-top:10px">Sorteo</div><b>${esc(r.fechaSorteo||'Por definir')} ${esc(r.horaSorteo||'')}</b>
+          </div>
+        </div>
+
+        <div class="actions" style="margin-top:18px;gap:10px;flex-wrap:wrap">
+          <a class="btn primary" href="${esc(r.url)}" target="_blank" rel="noopener">🎟️ Abrir boleto PDF</a>
+          <a class="btn ghost" href="${esc(r.downloadUrl||r.url)}" target="_blank" rel="noopener">⬇ Descargar</a>
+          <button class="btn primary" onclick="window.open('${esc(r.whatsappUrl)}','_blank')">💬 Enviar por WhatsApp</button>
+          <button class="btn ghost" onclick="window.open('${esc(r.url)}','_blank')">🖨 Imprimir</button>
+        </div>
+      </div>
+    `);
+    toast(r.mensaje||'Boleto generado correctamente.');
+  }catch(e){
+    toast(err(e));
+  }
+}
 async function approve(id){
   const obs=prompt('Observación opcional para aprobar:','Pago verificado');
   if(obs===null)return;
