@@ -874,8 +874,8 @@ async function apiCall(action, ...args){
    * =========================================================
    */
 
-  const codigoRifa =
-    <?!= JSON.stringify(codigoRifa || '') ?>;
+  // Frontend externo (GitHub Pages): leer la rifa desde ?rifa=R001
+  const codigoRifa = (new URLSearchParams(window.location.search).get('rifa') || '').trim().toUpperCase();
 
   let rifa = null;
   let numeros = [];
