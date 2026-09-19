@@ -902,6 +902,11 @@ async function apiCall(action, ...args){
   let countdownTimer = null;
   let metodoPagoUltimo = 'TRANSFERENCIA';
 
+  // Actualización automática de disponibilidad.
+  const INTERVALO_ACTUALIZACION_NUMEROS = 10000;
+  let autoRefreshTimer = null;
+  let actualizandoNumeros = false;
+
   document.addEventListener('DOMContentLoaded', iniciar);
 
   function iniciar(){
@@ -911,6 +916,80 @@ async function apiCall(action, ...args){
     }
 
     cargarRifa();
+    iniciarActualizacionAutomaticaNumeros();
+  }
+
+  function iniciarActualizacionAutomaticaNumeros(){
+    detenerActualizacionAutomaticaNumeros();
+
+    autoRefreshTimer = setInterval(() => {
+      if(!document.hidden){
+        actualizarNumerosAutomaticamente();
+      }
+    }, INTERVALO_ACTUALIZACION_NUMEROS);
+
+    document.addEventListener('visibilitychange', () => {
+      if(!document.hidden){
+        actualizarNumerosAutomaticamente();
+      }
+    });
+  }
+
+  function detenerActualizacionAutomaticaNumeros(){
+    if(autoRefreshTimer){
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+  }
+
+  async function actualizarNumerosAutomaticamente(){
+    if(actualizandoNumeros || !codigoRifa || document.hidden) return;
+
+    actualizandoNumeros = true;
+    try{
+      const respuesta = await apiCall('obtenerNumeros', codigoRifa);
+      const nuevos = respuesta && respuesta.numeros ? respuesta.numeros : [];
+
+      // Si otro usuario reservó/vendió un número que este visitante tenía
+      // seleccionado, lo quitamos de su selección antes de volver a dibujar.
+      const mapa = new Map(nuevos.map(n => [Number(n.numero), String(n.estado || '')]));
+      const retirados = [];
+
+      Array.from(seleccionados).forEach(numero => {
+        if(mapa.get(Number(numero)) !== 'DISPONIBLE'){
+          seleccionados.delete(numero);
+          retirados.push(numero);
+        }
+      });
+
+      numeros = nuevos;
+      renderNumeros();
+      actualizarEstadisticasDesdeNumeros();
+
+      if(retirados.length){
+        mostrarAviso(
+          'Uno o más números seleccionados dejaron de estar disponibles: ' +
+          retirados.map(n => String(n).padStart(String(rifa.cantidadNumeros).length,'0')).join(', '),
+          true
+        );
+      }
+    }catch(error){
+      // Una actualización automática fallida no debe reemplazar la rifa
+      // por una pantalla de error. Se intentará nuevamente en el siguiente ciclo.
+      console.warn('Actualización automática pendiente:', obtenerMensajeError(error));
+    }finally{
+      actualizandoNumeros = false;
+    }
+  }
+
+  function actualizarEstadisticasDesdeNumeros(){
+    const stats = {
+      total: numeros.length,
+      disponibles: numeros.filter(n => String(n.estado) === 'DISPONIBLE').length,
+      reservados: numeros.filter(n => ['RESERVADO','PAGO_PENDIENTE','PAGO_EN_REVISION'].includes(String(n.estado))).length,
+      vendidos: numeros.filter(n => String(n.estado) === 'VENDIDO').length
+    };
+    actualizarEstadisticas(stats);
   }
 
   function cargarRifa(){
@@ -1002,6 +1081,7 @@ async function apiCall(action, ...args){
     apiCall('obtenerNumeros', codigoRifa).then(respuesta => {
         numeros = respuesta.numeros || [];
         renderNumeros();
+        actualizarEstadisticasDesdeNumeros();
       }).catch(error => mostrarError(error));
   }
 
