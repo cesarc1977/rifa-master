@@ -19,14 +19,42 @@
 const RIFA_API_URL = 'https://rifa-master-api.cesarcarval77.workers.dev';
 async function apiCall(action, ...args){
   if (RIFA_API_URL.includes('PEGA_AQUI')) throw new Error('Falta configurar RIFA_API_URL en el frontend.');
-  const response = await fetch(RIFA_API_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action, args})
-  });
-  const payload = await response.json();
-  if(!payload.okApi) throw new Error(payload.error || 'Error del servidor');
-  return payload.data;
+
+  let ultimoError=null;
+  for(let intento=1; intento<=2; intento++){
+    try{
+      const response=await fetch(RIFA_API_URL,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action,args}),
+        cache:'no-store'
+      });
+      const texto=await response.text();
+      const tipo=String(response.headers.get('content-type')||'').toLowerCase();
+
+      if(!response.ok) throw new Error(`API HTTP ${response.status}.`);
+
+      let payload;
+      try{
+        payload=JSON.parse(texto);
+      }catch(e){
+        if(/^\s*</.test(texto)||tipo.includes('text/html')){
+          throw new Error('El servidor respondió temporalmente con HTML en lugar de JSON.');
+        }
+        throw new Error('La API devolvió una respuesta no válida.');
+      }
+
+      if(!payload.okApi) throw new Error(payload.error||'Error del servidor');
+      return payload.data;
+    }catch(e){
+      ultimoError=e;
+      if(intento<2){
+        await new Promise(resolve=>setTimeout(resolve,650));
+        continue;
+      }
+    }
+  }
+  throw ultimoError||new Error('No se pudo comunicar con el servidor.');
 }
 </script>
 </head>
@@ -158,20 +186,41 @@ async function ensureDashboardRaffleFilter(){
   dashboardRafflesLoaded=true;
 }
 
+let dashboardRequestId=0;
+
 async function loadDashboard(){
+  const requestId=++dashboardRequestId;
+  const sel=$('dashboardRaffleFilter');
+
   try{
     await ensureDashboardRaffleFilter();
-    const idRifa=$('dashboardRaffleFilter') ? $('dashboardRaffleFilter').value : '';
+    if(requestId!==dashboardRequestId) return;
+
+    const idRifa=sel ? sel.value : '';
+    if(sel) sel.disabled=true;
+    $('dashboardText').innerHTML='Actualizando resumen...';
+
     const r=await run('obtenerResumenAdmin',token,idRifa);
+    if(requestId!==dashboardRequestId) return;
+
     $('mRifas').textContent=r.rifasActivas;
     $('mVendidos').textContent=r.vendidos;
     $('mPagos').textContent=r.pagosPendientes;
     $('mRecaudado').textContent=money(r.recaudado);
+
     const alcance=idRifa
       ? `<b>${esc(idRifa)} - ${esc(r.nombreRifa)}</b>`
       : '<b>Todas las rifas</b>';
+
     $('dashboardText').innerHTML=`Resumen: ${alcance}. Total de números: <b>${r.numeros}</b>; disponibles: <b>${r.disponibles}</b>; reservados: <b>${r.reservados}</b>; vendidos: <b>${r.vendidos}</b>; pedidos: <b>${r.pedidos}</b>.`;
-  }catch(e){toast(err(e))}
+  }catch(e){
+    if(requestId===dashboardRequestId){
+      $('dashboardText').innerHTML='No se pudo actualizar el resumen.';
+      toast(err(e));
+    }
+  }finally{
+    if(requestId===dashboardRequestId && sel) sel.disabled=false;
+  }
 }
 
 async function loadPayments(){try{const rows=await run('obtenerPagosPendientes',token);if(!rows.length){$('paymentsBox').innerHTML='<div class="notice">No hay pagos pendientes o aprobados.</div>';return}let h='<div class="table-wrap"><table class="table"><thead><tr><th>Pedido</th><th>Método</th><th>Monto</th><th>Estado</th><th>Comprobante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>';rows.forEach(p=>{const ok=String(p.estado||'').toUpperCase()==='APROBADO';h+=`<tr><td><b>${esc(p.idPedido)}</b></td><td>${esc(p.metodo)}</td><td>${money(p.monto)}</td><td>${status(p.estado)}</td><td>${p.comprobante?`<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`:'—'}</td><td>${esc(p.fechaPago)}</td><td><div class="actions">${ok?`<button class="btn primary small" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:`<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button><button class="btn danger small" onclick="reject('${esc(p.idPago)}')">Rechazar</button>`}</div></td></tr>`});$('paymentsBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
