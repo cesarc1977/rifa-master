@@ -66,7 +66,21 @@ async function apiCall(action, ...args){
     <button class="tab" onclick="showTab('configuracion',this)">Configuración</button>
   </div>
 
-  <section id="dashboard" class="section active"><div class="card"><h3 style="margin-top:0">Estado del sistema</h3><div id="dashboardText" class="sub">Cargando...</div></div></section>
+  <section id="dashboard" class="section active">
+    <div class="card">
+      <div class="bar">
+        <div>
+          <h3 style="margin:0">Estado del sistema</h3>
+          <div class="sub">Consulta el total general o filtra el resumen por una rifa específica.</div>
+        </div>
+        <div style="min-width:260px">
+          <label class="sub" for="dashboardRaffleFilter">Rifa</label>
+          <select id="dashboardRaffleFilter" onchange="loadDashboard()" style="width:100%;margin-top:5px"></select>
+        </div>
+      </div>
+      <div id="dashboardText" class="sub" style="margin-top:14px">Cargando...</div>
+    </div>
+  </section>
 
   <section id="pagos" class="section"><div class="card"><div class="bar"><div><h3 style="margin:0">Pagos por revisar</h3><div class="sub">Los números se convierten en vendidos solamente al aprobar.</div></div><button class="btn ghost small" onclick="loadPayments()">Actualizar</button></div><div id="paymentsBox"></div></div></section>
 
@@ -131,7 +145,34 @@ function applyRole(){
 }
 function showTab(id,btn){document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');btn.classList.add('active');({dashboard:loadDashboard,pagos:loadPayments,pedidos:loadOrders,rifas:loadRaffles,clientes:loadClients,usuarios:loadUsers,auditoria:loadAudit,configuracion:loadConfiguration}[id]||(()=>{}))()}
 
-async function loadDashboard(){try{const r=await run('obtenerResumenAdmin',token);$('mRifas').textContent=r.rifasActivas;$('mVendidos').textContent=r.vendidos;$('mPagos').textContent=r.pagosPendientes;$('mRecaudado').textContent=money(r.recaudado);$('dashboardText').innerHTML=`Hay <b>${r.disponibles}</b> números disponibles, <b>${r.reservados}</b> reservados y <b>${r.pedidos}</b> pedidos registrados.`}catch(e){toast(err(e))}}
+let dashboardRafflesLoaded=false;
+
+async function ensureDashboardRaffleFilter(){
+  const sel=$('dashboardRaffleFilter');
+  if(!sel || dashboardRafflesLoaded) return;
+  const rows=await run('obtenerTodasLasRifas',token);
+  const current=sel.value||'';
+  sel.innerHTML='<option value="">Todas las rifas</option>'+
+    rows.map(r=>`<option value="${esc(r.idRifa)}">${esc(r.idRifa)} - ${esc(r.nombre)} (${esc(r.estado)})</option>`).join('');
+  if([...sel.options].some(o=>o.value===current)) sel.value=current;
+  dashboardRafflesLoaded=true;
+}
+
+async function loadDashboard(){
+  try{
+    await ensureDashboardRaffleFilter();
+    const idRifa=$('dashboardRaffleFilter') ? $('dashboardRaffleFilter').value : '';
+    const r=await run('obtenerResumenAdmin',token,idRifa);
+    $('mRifas').textContent=r.rifasActivas;
+    $('mVendidos').textContent=r.vendidos;
+    $('mPagos').textContent=r.pagosPendientes;
+    $('mRecaudado').textContent=money(r.recaudado);
+    const alcance=idRifa
+      ? `<b>${esc(idRifa)} - ${esc(r.nombreRifa)}</b>`
+      : '<b>Todas las rifas</b>';
+    $('dashboardText').innerHTML=`Resumen: ${alcance}. Total de números: <b>${r.numeros}</b>; disponibles: <b>${r.disponibles}</b>; reservados: <b>${r.reservados}</b>; vendidos: <b>${r.vendidos}</b>; pedidos: <b>${r.pedidos}</b>.`;
+  }catch(e){toast(err(e))}
+}
 
 async function loadPayments(){try{const rows=await run('obtenerPagosPendientes',token);if(!rows.length){$('paymentsBox').innerHTML='<div class="notice">No hay pagos pendientes o aprobados.</div>';return}let h='<div class="table-wrap"><table class="table"><thead><tr><th>Pedido</th><th>Método</th><th>Monto</th><th>Estado</th><th>Comprobante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>';rows.forEach(p=>{const ok=String(p.estado||'').toUpperCase()==='APROBADO';h+=`<tr><td><b>${esc(p.idPedido)}</b></td><td>${esc(p.metodo)}</td><td>${money(p.monto)}</td><td>${status(p.estado)}</td><td>${p.comprobante?`<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`:'—'}</td><td>${esc(p.fechaPago)}</td><td><div class="actions">${ok?`<button class="btn primary small" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:`<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button><button class="btn danger small" onclick="reject('${esc(p.idPago)}')">Rechazar</button>`}</div></td></tr>`});$('paymentsBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
 async function generateTicket(idPedido){try{const r=await run('generarBoletoPagoAprobado',token,idPedido);openModal(`<h3>🎟️ Boleto generado</h3><p class="sub">Números: <b>${esc((r.numeros||[]).join(', '))}</b></p><p><a class="btn primary" href="${esc(r.url)}" target="_blank">Abrir boleto PDF</a> <button class="btn ghost" onclick="window.open('${esc(r.whatsappUrl)}','_blank')">💬 WhatsApp</button></p>`);toast(r.mensaje)}catch(e){toast(err(e))}}
@@ -163,7 +204,33 @@ async function viewProof(id){
 }
 
 async function loadOrders(){try{const rows=await run('obtenerPedidos',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Código</th><th>Rifa</th><th>Total</th><th>Estado</th><th>Fecha</th></tr></thead><tbody>';rows.slice().reverse().forEach(p=>h+=`<tr><td>${esc(p.codigo)}</td><td>${esc(p.idRifa)}</td><td>${money(p.total)}</td><td>${status(p.estado)}</td><td>${esc(p.fechaCreacion)}</td></tr>`);$('ordersBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
-async function loadRaffles(){try{const rows=await run('obtenerTodasLasRifas',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>ID</th><th>Nombre</th><th>Premio</th><th>Imagen</th><th>Precio</th><th>Números</th><th>Sorteo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>';rows.forEach(r=>h+=`<tr><td><b>${esc(r.idRifa)}</b></td><td>${esc(r.nombre)}</td><td>${esc(r.premio)}</td><td>${r.imagenProducto?`<img class="raffle-thumb" src="${esc(r.imagenProducto)}" alt="Premio">`:'<span class="muted">Sin imagen</span>'}</td><td>${money(r.precio)}</td><td>${r.cantidadNumeros}</td><td>${esc(r.fechaSorteo)} ${esc(r.horaSorteo)}</td><td>${status(r.estado)}</td><td><div class="actions"><button class="btn primary small" onclick="openRaffleImageModal('${esc(r.idRifa)}','${esc(r.premio)}','${esc(r.imagenProducto||'')}')">Imagen</button><button class="btn ghost small" onclick="shareRaffleWhatsApp('${esc(r.idRifa)}')">💬 WhatsApp</button></div></td></tr>`);$('rafflesBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
+async function loadRaffles(){
+  try{
+    const rows=await run('obtenerTodasLasRifas',token);
+    let h='<div class="table-wrap"><table class="table"><thead><tr><th>ID</th><th>Nombre</th><th>Premio</th><th>Imagen</th><th>Precio</th><th>Números</th><th>Sorteo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>';
+    rows.forEach(r=>{
+      const activa=String(r.estado||'').toUpperCase()==='ACTIVA';
+      const toggle=(sessionUser && sessionUser.rol!=='OPERADOR')
+        ? `<button class="btn ${activa?'danger':'primary'} small" onclick="toggleRaffleState('${esc(r.idRifa)}','${activa?'INACTIVA':'ACTIVA'}')">${activa?'Desactivar':'Activar'}</button>`
+        : '';
+      h+=`<tr><td><b>${esc(r.idRifa)}</b></td><td>${esc(r.nombre)}</td><td>${esc(r.premio)}</td><td>${r.imagenProducto?`<img class="raffle-thumb" src="${esc(r.imagenProducto)}" alt="Premio">`:'<span class="muted">Sin imagen</span>'}</td><td>${money(r.precio)}</td><td>${r.cantidadNumeros}</td><td>${esc(r.fechaSorteo)} ${esc(r.horaSorteo)}</td><td>${status(r.estado)}</td><td><div class="actions"><button class="btn primary small" onclick="openRaffleImageModal('${esc(r.idRifa)}','${esc(r.premio)}','${esc(r.imagenProducto||'')}')">Imagen</button><button class="btn ghost small" onclick="shareRaffleWhatsApp('${esc(r.idRifa)}')">💬 WhatsApp</button>${toggle}</div></td></tr>`;
+    });
+    $('rafflesBox').innerHTML=h+'</tbody></table></div>';
+  }catch(e){toast(err(e))}
+}
+
+async function toggleRaffleState(idRifa,nuevoEstado){
+  const accion=nuevoEstado==='ACTIVA'?'activar':'desactivar';
+  if(!confirm(`¿Deseas ${accion} la rifa ${idRifa}?`)) return;
+  try{
+    const r=await run('cambiarEstadoRifa',token,idRifa,nuevoEstado);
+    toast(r.mensaje||'Estado actualizado.');
+    dashboardRafflesLoaded=false;
+    await loadRaffles();
+    await loadDashboard();
+  }catch(e){toast(err(e))}
+}
+
 async function loadClients(){try{const rows=await run('obtenerClientes',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cédula</th><th>Teléfono</th><th>Email</th><th>Ciudad</th></tr></thead><tbody>';rows.slice().reverse().forEach(c=>h+=`<tr><td>${esc(c.nombre)} ${esc(c.apellido)}</td><td>${esc(c.cedula)}</td><td>${esc(c.telefono)}</td><td>${esc(c.email)}</td><td>${esc(c.ciudad)}</td></tr>`);$('clientsBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
 async function loadUsers(){try{const rows=await run('obtenerUsuarios',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Creación</th></tr></thead><tbody>';rows.forEach(u=>h+=`<tr><td>${esc(u.nombre)}</td><td>${esc(u.email)}</td><td>${esc(u.rol)}</td><td>${status(u.estado)}</td><td>${esc(u.fechaCreacion)}</td></tr>`);$('usersBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
 async function loadAudit(){try{const rows=await run('obtenerAuditoria',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>ID</th><th>Detalle</th></tr></thead><tbody>';rows.slice(0,300).forEach(a=>h+=`<tr><td>${esc(a.fecha)}</td><td>${esc(a.usuario)}</td><td>${esc(a.accion)}</td><td>${esc(a.entidad)}</td><td>${esc(a.idEntidad)}</td><td>${esc(a.detalle)}</td></tr>`);$('auditBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
