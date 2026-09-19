@@ -623,14 +623,32 @@
 const RIFA_API_URL = 'https://rifa-master-api.cesarcarval77.workers.dev';
 async function apiCall(action, ...args){
   if (RIFA_API_URL.includes('PEGA_AQUI')) throw new Error('Falta configurar RIFA_API_URL en el frontend.');
-  const response = await fetch(RIFA_API_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action, args})
-  });
-  const payload = await response.json();
-  if(!payload.okApi) throw new Error(payload.error || 'Error del servidor');
-  return payload.data;
+  let ultimoError=null;
+  for(let intento=1; intento<=2; intento++){
+    try{
+      const response=await fetch(RIFA_API_URL,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action,args}),
+        cache:'no-store'
+      });
+      const texto=await response.text();
+      const tipo=String(response.headers.get('content-type')||'').toLowerCase();
+      if(!response.ok) throw new Error(`API HTTP ${response.status}.`);
+      let payload;
+      try{ payload=JSON.parse(texto); }
+      catch(e){
+        if(/^\s*</.test(texto)||tipo.includes('text/html')) throw new Error('El servidor respondió temporalmente con HTML en lugar de JSON.');
+        throw new Error('La API devolvió una respuesta no válida.');
+      }
+      if(!payload.okApi) throw new Error(payload.error||'Error del servidor');
+      return payload.data;
+    }catch(e){
+      ultimoError=e;
+      if(intento<2){ await new Promise(resolve=>setTimeout(resolve,800)); continue; }
+    }
+  }
+  throw ultimoError||new Error('No se pudo comunicar con el servidor.');
 }
 </script>
 </head>
