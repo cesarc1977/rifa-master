@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rifa Master - Administración</title>
+<style>
+:root{--bg:#07111f;--panel:#0d1a2b;--panel2:#101f33;--line:#20334b;--text:#e5eef9;--muted:#91a4ba;--accent:#38bdf8;--ok:#34d399;--warn:#fbbf24;--danger:#fb7185}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#06101d,#0b1728);color:var(--text);font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}button,input,select{font:inherit}.hidden{display:none!important}
+.wrap{max-width:1400px;margin:auto;padding:22px}.login{min-height:100vh;display:grid;place-items:center;padding:20px}.login-card{width:min(430px,100%);background:rgba(13,26,43,.96);border:1px solid var(--line);border-radius:22px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.brand{font-size:26px;font-weight:900;letter-spacing:-.5px}.brand span{color:var(--accent)}.sub{color:var(--muted);font-size:13px;line-height:1.5;margin-top:6px}.field{margin-top:15px}.field label{display:block;font-size:12px;color:#b9c7d8;font-weight:700;margin-bottom:7px}.field input,.field select{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:11px;background:#091525;color:var(--text);outline:none}.btn{border:0;border-radius:11px;padding:11px 15px;font-weight:800;cursor:pointer}.primary{background:var(--accent);color:#03111b}.danger{background:rgba(251,113,133,.14);color:#fecdd3;border:1px solid rgba(251,113,133,.3)}.ghost{background:#13243a;color:#cbd5e1;border:1px solid var(--line)}.login .btn{width:100%;margin-top:18px}.msg{margin-top:12px;font-size:12px;min-height:18px;color:#fda4af}
+.top{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:20px}.userbox{display:flex;align-items:center;gap:10px}.role{font-size:11px;padding:5px 8px;border-radius:99px;background:#123047;color:#9bdcff;font-weight:800}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.card{background:rgba(13,26,43,.92);border:1px solid var(--line);border-radius:17px;padding:17px}.metric .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}.metric .value{font-size:29px;font-weight:900;margin-top:6px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.tab{padding:9px 13px;border-radius:10px;border:1px solid var(--line);background:#0b192a;color:#b7c6d8;cursor:pointer;font-weight:800;font-size:12px}.tab.active{background:#15344c;color:#fff;border-color:#28617d}.section{display:none}.section.active{display:block}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px}.table{width:100%;border-collapse:collapse;min-width:900px}.table th,.table td{padding:11px 12px;border-bottom:1px solid #17283d;text-align:left;font-size:12px;vertical-align:top}.table th{color:#8fa6bf;background:#0a1727;position:sticky;top:0}.table td{color:#d8e2ee}.status{display:inline-block;padding:4px 7px;border-radius:99px;font-size:10px;font-weight:900}.pending{background:#3a2a0a;color:#fde68a}.review{background:#102f3e;color:#8ee7ff}.approved{background:#0d352b;color:#86efac}.rejected{background:#3b1720;color:#fda4af}.available{color:#86efac}.muted{color:var(--muted)}.actions{display:flex;gap:6px;flex-wrap:wrap}.small{padding:7px 9px;font-size:11px}.bar{display:flex;gap:9px;align-items:center;justify-content:space-between;margin-bottom:12px}.bar input{padding:10px;border:1px solid var(--line);border-radius:10px;background:#091525;color:#fff;min-width:240px}.notice{padding:11px 13px;border:1px solid var(--line);background:#0b192a;border-radius:12px;color:#b8c8d9;font-size:12px;margin-bottom:13px}.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:grid;place-items:center;padding:20px;z-index:5}.modal-card{width:min(560px,100%);max-height:90vh;overflow:auto;background:#0d1a2b;border:1px solid var(--line);border-radius:18px;padding:20px}.close{float:right;background:none;border:0;color:#94a3b8;font-size:22px;cursor:pointer}.toast{position:fixed;right:20px;bottom:20px;background:#0e2234;border:1px solid #2d526b;padding:12px 15px;border-radius:12px;font-size:12px;display:none;z-index:10}.toast.show{display:block}
+.config-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.config-card{background:#0b192a;border:1px solid var(--line);border-radius:15px;padding:16px}.config-card h4{margin:0 0 5px}.config-card .field{margin-top:11px}.switch{display:flex;align-items:center;gap:9px;margin-top:12px;color:#b9c7d8;font-size:12px}.switch input{width:auto}.image-preview{margin-top:12px;border:1px dashed #31506b;border-radius:14px;min-height:190px;display:grid;place-items:center;overflow:hidden;background:#07111f}.image-preview img{width:100%;max-height:320px;object-fit:contain}.image-placeholder{color:#71869d;font-size:12px;padding:25px;text-align:center}.file-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.file-row input[type=file]{flex:1;min-width:220px}.config-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:16px}.raffle-thumb{width:58px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line);display:block}.raffle-image-modal-preview{margin-top:14px;border:1px dashed #31506b;border-radius:14px;min-height:190px;display:grid;place-items:center;overflow:hidden;background:#07111f}.raffle-image-modal-preview img{width:100%;max-height:320px;object-fit:contain}
+@media(max-width:900px){.config-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.wrap{padding:13px}.grid{grid-template-columns:1fr 1fr}.top{align-items:flex-start;flex-direction:column}.bar{align-items:stretch;flex-direction:column}.bar input{width:100%;min-width:0}}
+</style>
+<script>
+/* RIFA MASTER - cliente API externo */
+const RIFA_API_URL = 'https://rifa-master-api.cesarcarval77.workers.dev';
+async function apiCall(action, ...args){
+  if (RIFA_API_URL.includes('PEGA_AQUI')) throw new Error('Falta configurar RIFA_API_URL en el frontend.');
+  const response = await fetch(RIFA_API_URL, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action, args})
+  });
+  const payload = await response.json();
+  if(!payload.okApi) throw new Error(payload.error || 'Error del servidor');
+  return payload.data;
+}
+</script>
+</head>
+<body>
+<div id="loginView" class="login">
+  <div class="login-card">
+    <div class="brand">Rifa <span>Master</span></div>
+    <div class="sub">Panel administrativo seguro · gestión de rifas, pagos, comprobantes y auditoría.</div>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username"></div>
+    <div class="field"><label>Contraseña</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+    <button class="btn primary" onclick="login()">Ingresar</button>
+    <div id="loginMsg" class="msg"></div>
+  </div>
+</div>
+
+<div id="appView" class="wrap hidden">
+  <div class="top">
+    <div><div class="brand">Rifa <span>Master</span> <span style="color:#94a3b8;font-size:13px">ADMIN</span></div><div class="sub">Centro de administración</div></div>
+    <div class="userbox"><div id="userName" style="font-size:12px"></div><div id="userRole" class="role"></div><button class="btn ghost small" onclick="logout()">Salir</button></div>
+  </div>
+
+  <div class="grid">
+    <div class="card metric"><div class="label">Rifas activas</div><div id="mRifas" class="value">—</div></div>
+    <div class="card metric"><div class="label">Números vendidos</div><div id="mVendidos" class="value">—</div></div>
+    <div class="card metric"><div class="label">Pagos pendientes</div><div id="mPagos" class="value">—</div></div>
+    <div class="card metric"><div class="label">Recaudado</div><div id="mRecaudado" class="value">—</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('dashboard',this)">Resumen</button>
+    <button class="tab" onclick="showTab('pagos',this)">Pagos</button>
+    <button class="tab" onclick="showTab('pedidos',this)">Pedidos</button>
+    <button class="tab" onclick="showTab('rifas',this)">Rifas</button>
+    <button class="tab" onclick="showTab('clientes',this)">Clientes</button>
+    <button class="tab" onclick="showTab('usuarios',this)">Usuarios</button>
+    <button class="tab" onclick="showTab('auditoria',this)">Auditoría</button>
+    <button class="tab" onclick="showTab('configuracion',this)">Configuración</button>
+  </div>
+
+  <section id="dashboard" class="section active"><div class="card"><h3 style="margin-top:0">Estado del sistema</h3><div id="dashboardText" class="sub">Cargando...</div></div></section>
+
+  <section id="pagos" class="section"><div class="card"><div class="bar"><div><h3 style="margin:0">Pagos por revisar</h3><div class="sub">Los números se convierten en vendidos solamente al aprobar.</div></div><button class="btn ghost small" onclick="loadPayments()">Actualizar</button></div><div id="paymentsBox"></div></div></section>
+
+  <section id="pedidos" class="section"><div class="card"><div class="bar"><h3 style="margin:0">Pedidos</h3><button class="btn ghost small" onclick="loadOrders()">Actualizar</button></div><div id="ordersBox"></div></div></section>
+
+  <section id="rifas" class="section"><div class="card"><div class="bar"><h3 style="margin:0">Rifas</h3><button id="newRaffleBtn" class="btn primary small" onclick="openRaffleModal()">Nueva rifa</button></div><div id="rafflesBox"></div></div></section>
+
+  <section id="clientes" class="section"><div class="card"><div class="bar"><h3 style="margin:0">Clientes</h3><button class="btn ghost small" onclick="loadClients()">Actualizar</button></div><div id="clientsBox"></div></div></section>
+
+  <section id="usuarios" class="section"><div class="card"><div class="bar"><div><h3 style="margin:0">Usuarios</h3><div class="sub">Roles: SUPER_ADMIN, ADMIN y OPERADOR.</div></div><button id="newUserBtn" class="btn primary small" onclick="openUserModal()">Nuevo usuario</button></div><div id="usersBox"></div></div></section>
+
+  <section id="auditoria" class="section"><div class="card"><div class="bar"><h3 style="margin:0">Auditoría</h3><button class="btn ghost small" onclick="loadAudit()">Actualizar</button></div><div id="auditBox"></div></div></section>
+
+  <section id="configuracion" class="section">
+  <div class="card">
+    <div class="bar"><div><h3 style="margin:0">Configuración</h3><div class="sub">Administra las cuentas de transferencia. Las imágenes principales se gestionan dentro de cada rifa.</div></div><button class="btn ghost small" onclick="loadConfiguration()">Recargar</button></div>
+    <div id="configMsg" class="notice">Cargando configuración...</div>
+    <h4 style="margin:18px 0 8px">Cuentas bancarias</h4>
+    <div class="sub">Puedes registrar hasta 3 cuentas. Las que estén desactivadas no se mostrarán al cliente.</div>
+    <div id="accountsBox" class="config-grid" style="margin-top:12px"></div>
+    <div class="config-actions"><button class="btn primary" onclick="saveConfiguration()">Guardar cambios</button></div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="bar"><div><h3 style="margin:0">Imagen global de respaldo</h3><div class="sub">Compatibilidad con rifas antiguas sin imagen propia. Para una nueva rifa, usa el botón <b>Imagen</b> en la pestaña Rifas.</div></div></div>
+    <div class="file-row"><input id="productImageFile" type="file" accept="image/jpeg,image/png,image/webp" onchange="previewProductImage(this)"><button class="btn ghost small" onclick="clearProductImage()">Quitar selección</button></div>
+    <div id="imagePreview" class="image-preview"><div class="image-placeholder">Selecciona una imagen para ver la vista previa.</div></div>
+    <div class="config-actions"><button class="btn primary" onclick="uploadProductImage()">Guardar imagen</button></div>
+  </div>
+</section>
+</div>
+
+<div id="modal" class="modal hidden"><div class="modal-card"><button class="close" onclick="closeModal()">×</button><div id="modalContent"></div></div></div>
+<div id="toast" class="toast"></div>
+
+<script>
+let token = localStorage.getItem('rifa_master_admin_token') || '';
+let sessionUser = null;
+const $ = id => document.getElementById(id);
+
+function run(fn,...args){ return apiCall(fn,...args); }
+function err(e){return e && e.message ? e.message : String(e || 'Error desconocido');}
+function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),3200)}
+function money(v){return new Intl.NumberFormat('es-EC',{style:'currency',currency:'USD'}).format(Number(v||0))}
+function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function status(s){const x=String(s||'');let c='pending';if(x==='APROBADO'||x==='PAGADO')c='approved';else if(x==='EN_REVISION')c='review';else if(x==='RECHAZADO')c='rejected';return `<span class="status ${c}">${esc(x)}</span>`}
+
+async function login(){
+  $('loginMsg').textContent='Ingresando...';
+  try{const r=await run('iniciarSesionAdmin',$('loginEmail').value,$('loginPassword').value);token=r.token;sessionUser=r.usuario;localStorage.setItem('rifa_master_admin_token',token);showApp();toast('Sesión iniciada');}
+  catch(e){$('loginMsg').textContent=err(e)}
+}
+async function showApp(){
+  try{const r=await run('obtenerSesionAdmin',token);sessionUser=r.usuario;}
+  catch(e){localStorage.removeItem('rifa_master_admin_token');token='';return showLogin()}
+  $('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('userName').textContent=sessionUser.nombre||sessionUser.email;$('userRole').textContent=sessionUser.rol;applyRole();loadDashboard();
+}
+function showLogin(){$('loginView').classList.remove('hidden');$('appView').classList.add('hidden')}
+async function logout(){try{if(token)await run('cerrarSesionAdmin',token)}catch(e){} localStorage.removeItem('rifa_master_admin_token');token='';showLogin()}
+function applyRole(){
+  if(sessionUser.rol!=='SUPER_ADMIN'){$('newUserBtn').classList.add('hidden');$('newRaffleBtn').classList.toggle('hidden',sessionUser.rol==='OPERADOR')}
+  if(sessionUser.rol==='OPERADOR'){document.querySelector('[onclick="showTab(\'auditoria\',this)"]').classList.add('hidden');document.querySelector('[onclick="showTab(\'configuracion\',this)"]').classList.add('hidden');}
+}
+function showTab(id,btn){document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');btn.classList.add('active');({dashboard:loadDashboard,pagos:loadPayments,pedidos:loadOrders,rifas:loadRaffles,clientes:loadClients,usuarios:loadUsers,auditoria:loadAudit,configuracion:loadConfiguration}[id]||(()=>{}))()}
+
+async function loadDashboard(){try{const r=await run('obtenerResumenAdmin',token);$('mRifas').textContent=r.rifasActivas;$('mVendidos').textContent=r.vendidos;$('mPagos').textContent=r.pagosPendientes;$('mRecaudado').textContent=money(r.recaudado);$('dashboardText').innerHTML=`Hay <b>${r.disponibles}</b> números disponibles, <b>${r.reservados}</b> reservados y <b>${r.pedidos}</b> pedidos registrados.`}catch(e){toast(err(e))}}
+
+async function loadPayments(){try{const rows=await run('obtenerPagosPendientes',token);if(!rows.length){$('paymentsBox').innerHTML='<div class="notice">No hay pagos pendientes o aprobados.</div>';return}let h='<div class="table-wrap"><table class="table"><thead><tr><th>Pedido</th><th>Método</th><th>Monto</th><th>Estado</th><th>Comprobante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>';rows.forEach(p=>{const ok=String(p.estado||'').toUpperCase()==='APROBADO';h+=`<tr><td><b>${esc(p.idPedido)}</b></td><td>${esc(p.metodo)}</td><td>${money(p.monto)}</td><td>${status(p.estado)}</td><td>${p.comprobante?`<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`:'—'}</td><td>${esc(p.fechaPago)}</td><td><div class="actions">${ok?`<button class="btn primary small" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:`<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button><button class="btn danger small" onclick="reject('${esc(p.idPago)}')">Rechazar</button>`}</div></td></tr>`});$('paymentsBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
+async function generateTicket(idPedido){try{const r=await run('generarBoletoPagoAprobado',token,idPedido);openModal(`<h3>🎟️ Boleto generado</h3><p class="sub">Números: <b>${esc((r.numeros||[]).join(', '))}</b></p><p><a class="btn primary" href="${esc(r.url)}" target="_blank">Abrir boleto PDF</a> <button class="btn ghost" onclick="window.open('${esc(r.whatsappUrl)}','_blank')">💬 WhatsApp</button></p>`);toast(r.mensaje)}catch(e){toast(err(e))}}
+async function approve(id){
+  const obs=prompt('Observación opcional para aprobar:','Pago verificado');
+  if(obs===null)return;
+  try{
+    const r=await run('aprobarPago',token,id,obs);
+    toast(r.mensaje||'Pago aprobado correctamente.');
+    await loadPayments(); await loadDashboard();
+  }catch(e){toast(err(e))}
+}
+async function reject(id){
+  const obs=prompt('Motivo del rechazo:','Comprobante no válido');
+  if(obs===null)return;
+  try{
+    const r=await run('rechazarPago',token,id,obs);
+    toast(r.mensaje||'Pago rechazado.');
+    await loadPayments(); await loadDashboard();
+  }catch(e){toast(err(e))}
+}
+async function viewProof(id){
+  try{
+    const r=await run('obtenerComprobanteAdmin',token,id);
+    if(!r||!r.existe){toast((r&&r.mensaje)||'No existe comprobante para este pago.');return;}
+    const preview=r.previewUrl||r.url;
+    openModal(`<h3>📎 Comprobante de pago</h3><p class="sub">${esc(r.nombre||'Comprobante')} · ${esc(r.mimeType||'')}</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:15px"><a class="btn primary" href="${esc(preview)}" target="_blank" rel="noopener">Ver comprobante</a><a class="btn ghost" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir en Google Drive</a></div>${r.accesoEnlace===false?'<div class="notice" style="margin-top:14px">Google Drive no permitió habilitar acceso por enlace. Abre el archivo con una cuenta que tenga permiso.</div>':''}`);
+  }catch(e){toast(err(e))}
+}
+
+async function loadOrders(){try{const rows=await run('obtenerPedidos',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Código</th><th>Rifa</th><th>Total</th><th>Estado</th><th>Fecha</th></tr></thead><tbody>';rows.slice().reverse().forEach(p=>h+=`<tr><td>${esc(p.codigo)}</td><td>${esc(p.idRifa)}</td><td>${money(p.total)}</td><td>${status(p.estado)}</td><td>${esc(p.fechaCreacion)}</td></tr>`);$('ordersBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
+async function loadRaffles(){try{const rows=await run('obtenerTodasLasRifas',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>ID</th><th>Nombre</th><th>Premio</th><th>Imagen</th><th>Precio</th><th>Números</th><th>Sorteo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>';rows.forEach(r=>h+=`<tr><td><b>${esc(r.idRifa)}</b></td><td>${esc(r.nombre)}</td><td>${esc(r.premio)}</td><td>${r.imagenProducto?`<img class="raffle-thumb" src="${esc(r.imagenProducto)}" alt="Premio">`:'<span class="muted">Sin imagen</span>'}</td><td>${money(r.precio)}</td><td>${r.cantidadNumeros}</td><td>${esc(r.fechaSorteo)} ${esc(r.horaSorteo)}</td><td>${status(r.estado)}</td><td><div class="actions"><button class="btn primary small" onclick="openRaffleImageModal('${esc(r.idRifa)}','${esc(r.premio)}','${esc(r.imagenProducto||'')}')">Imagen</button><button class="btn ghost small" onclick="shareRaffleWhatsApp('${esc(r.idRifa)}')">💬 WhatsApp</button></div></td></tr>`);$('rafflesBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
+async function loadClients(){try{const rows=await run('obtenerClientes',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cédula</th><th>Teléfono</th><th>Email</th><th>Ciudad</th></tr></thead><tbody>';rows.slice().reverse().forEach(c=>h+=`<tr><td>${esc(c.nombre)} ${esc(c.apellido)}</td><td>${esc(c.cedula)}</td><td>${esc(c.telefono)}</td><td>${esc(c.email)}</td><td>${esc(c.ciudad)}</td></tr>`);$('clientsBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
+async function loadUsers(){try{const rows=await run('obtenerUsuarios',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Creación</th></tr></thead><tbody>';rows.forEach(u=>h+=`<tr><td>${esc(u.nombre)}</td><td>${esc(u.email)}</td><td>${esc(u.rol)}</td><td>${status(u.estado)}</td><td>${esc(u.fechaCreacion)}</td></tr>`);$('usersBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
+async function loadAudit(){try{const rows=await run('obtenerAuditoria',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>ID</th><th>Detalle</th></tr></thead><tbody>';rows.slice(0,300).forEach(a=>h+=`<tr><td>${esc(a.fecha)}</td><td>${esc(a.usuario)}</td><td>${esc(a.accion)}</td><td>${esc(a.entidad)}</td><td>${esc(a.idEntidad)}</td><td>${esc(a.detalle)}</td></tr>`);$('auditBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
+
+let configAccounts=[];
+let productImageCurrent='';
+
+function accountCard(i,a){
+  a=a||{};
+  return `<div class="config-card"><h4>Cuenta ${i}</h4>
+    <div class="field"><label>Alias</label><input id="acc${i}Alias" value="${esc(a.alias||'')}" placeholder="Cuenta principal"></div>
+    <div class="field"><label>Banco</label><input id="acc${i}Banco" value="${esc(a.banco||'')}" placeholder="Banco"></div>
+    <div class="field"><label>Tipo de cuenta</label><select id="acc${i}Tipo"><option value="">Seleccionar</option><option value="AHORROS" ${a.tipoCuenta==='AHORROS'?'selected':''}>Ahorros</option><option value="CORRIENTE" ${a.tipoCuenta==='CORRIENTE'?'selected':''}>Corriente</option><option value="OTRA" ${a.tipoCuenta==='OTRA'?'selected':''}>Otra</option></select></div>
+    <div class="field"><label>Número de cuenta</label><input id="acc${i}Numero" value="${esc(a.numeroCuenta||'')}" inputmode="numeric"></div>
+    <div class="field"><label>Titular</label><input id="acc${i}Titular" value="${esc(a.titularCuenta||'')}"></div>
+    <div class="field"><label>Identificación del titular</label><input id="acc${i}Identificacion" value="${esc(a.identificacionTitular||'')}" inputmode="numeric"></div>
+    <label class="switch"><input id="acc${i}Activa" type="checkbox" ${a.activa===false?'':'checked'}> Cuenta activa y visible</label>
+  </div>`;
+}
+
+async function loadConfiguration(){
+  if(sessionUser && sessionUser.rol==='OPERADOR') return;
+  try{
+    const r=await run('obtenerConfiguracionAdmin',token);
+    configAccounts=r.cuentas||[]; productImageCurrent=r.imagenProducto||'';
+    let h=''; for(let i=1;i<=3;i++) h+=accountCard(i,configAccounts[i-1]||{alias:i===1?'Cuenta principal':i===2?'Cuenta secundaria':'Cuenta adicional'});
+    $('accountsBox').innerHTML=h;
+    $('configMsg').textContent='Configuración cargada correctamente.';
+    if(productImageCurrent){$('imagePreview').innerHTML=`<img src="${esc(productImageCurrent)}" alt="Imagen del producto">`;} else clearProductImage(false);
+  }catch(e){$('configMsg').textContent=err(e)}
+}
+
+function readAccounts(){
+  const out=[];
+  for(let i=1;i<=3;i++) out.push({
+    alias:$('acc'+i+'Alias').value.trim(), banco:$('acc'+i+'Banco').value.trim(), tipoCuenta:$('acc'+i+'Tipo').value,
+    numeroCuenta:$('acc'+i+'Numero').value.trim(), titularCuenta:$('acc'+i+'Titular').value.trim(), identificacionTitular:$('acc'+i+'Identificacion').value.trim(), activa:$('acc'+i+'Activa').checked
+  });
+  return out;
+}
+
+async function saveConfiguration(){
+  try{const cuentas=readAccounts();const r=await run('guardarCuentasTransferencia',token,cuentas);toast(r.mensaje||'Cambios guardados');loadConfiguration();}catch(e){toast(err(e))}
+}
+
+function previewProductImage(input){
+  const file=input.files&&input.files[0]; if(!file)return;
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){toast('Solo se permiten JPG, PNG o WEBP.');input.value='';return;}
+  if(file.size>5*1024*1024){toast('La imagen no puede superar 5 MB.');input.value='';return;}
+  const reader=new FileReader(); reader.onload=e=>{$('imagePreview').innerHTML=`<img src="${e.target.result}" alt="Vista previa">`}; reader.readAsDataURL(file);
+}
+function clearProductImage(resetInput=true){if(resetInput)$('productImageFile').value=''; $('imagePreview').innerHTML=productImageCurrent?`<img src="${esc(productImageCurrent)}" alt="Imagen del producto">`:'<div class="image-placeholder">Selecciona una imagen para ver la vista previa.</div>'}
+
+async function uploadProductImage(){
+  const file=$('productImageFile').files&&$('productImageFile').files[0];
+  if(!file){toast('Selecciona una imagen primero.');return;}
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){toast('Solo se permiten JPG, PNG o WEBP.');return;}
+  if(file.size>5*1024*1024){toast('La imagen no puede superar 5 MB.');return;}
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    try{const base64=String(e.target.result).split(',')[1]||'';const r=await run('guardarImagenProducto',token,{nombre:file.name,mimeType:file.type,base64:base64});productImageCurrent=r.url||'';$('productImageFile').value='';$('imagePreview').innerHTML=productImageCurrent?`<img src="${esc(productImageCurrent)}" alt="Imagen del producto">`:'<div class="image-placeholder">Imagen guardada.</div>';toast(r.mensaje||'Imagen guardada correctamente.');}
+    catch(x){toast(err(x))}
+  }; reader.readAsDataURL(file);
+}
+
+let raffleImageTarget = '';
+
+function openRaffleImageModal(idRifa, premio, currentUrl){
+  raffleImageTarget = idRifa;
+
+  openModal(`
+    <h3>Imagen de la rifa ${esc(idRifa)}</h3>
+    <p class="sub">Premio: <b>${esc(premio)}</b></p>
+    <div class="field">
+      <label>Seleccionar imagen</label>
+      <input id="raffleImageFile" type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onchange="previewRaffleImage(this)">
+    </div>
+
+    <div id="raffleImagePreview" class="raffle-image-modal-preview">
+      ${currentUrl
+        ? `<img src="${esc(currentUrl)}" alt="Imagen del premio">`
+        : '<div class="image-placeholder">Esta rifa todavía no tiene imagen.</div>'}
+    </div>
+
+    <div class="config-actions">
+      ${currentUrl
+        ? '<button class="btn danger small" onclick="removeRaffleImage()">Eliminar imagen</button>'
+        : ''}
+      <button class="btn primary" onclick="uploadRaffleImage()">Guardar imagen</button>
+    </div>
+  `);
+}
+
+function previewRaffleImage(input){
+  const file=input.files&&input.files[0];
+  if(!file)return;
+
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){
+    toast('Solo se permiten JPG, PNG o WEBP.');
+    input.value='';
+    return;
+  }
+
+  if(file.size>5*1024*1024){
+    toast('La imagen no puede superar 5 MB.');
+    input.value='';
+    return;
+  }
+
+  const reader=new FileReader();
+  reader.onload=e=>{
+    $('raffleImagePreview').innerHTML =
+      `<img src="${e.target.result}" alt="Vista previa">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function uploadRaffleImage(){
+  const file=$('raffleImageFile').files&&$('raffleImageFile').files[0];
+
+  if(!file){
+    toast('Selecciona una imagen primero.');
+    return;
+  }
+
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){
+    toast('Solo se permiten JPG, PNG o WEBP.');
+    return;
+  }
+
+  if(file.size>5*1024*1024){
+    toast('La imagen no puede superar 5 MB.');
+    return;
+  }
+
+  const reader=new FileReader();
+
+  reader.onload=async e=>{
+    try{
+      const base64=String(e.target.result).split(',')[1]||'';
+
+      const r=await run(
+        'guardarImagenRifa',
+        token,
+        raffleImageTarget,
+        {
+          nombre:file.name,
+          mimeType:file.type,
+          base64:base64
+        }
+      );
+
+      closeModal();
+      toast(r.mensaje||'Imagen guardada correctamente.');
+      loadRaffles();
+    }catch(x){
+      toast(err(x));
+    }
+  };
+
+  reader.readAsDataURL(file);
+}
+
+async function removeRaffleImage(){
+  if(!raffleImageTarget)return;
+
+  if(!confirm('¿Eliminar la imagen de esta rifa?'))return;
+
+  try{
+    const r=await run('quitarImagenRifa',token,raffleImageTarget);
+    closeModal();
+    toast(r.mensaje||'Imagen eliminada.');
+    loadRaffles();
+  }catch(e){
+    toast(err(e));
+  }
+}
+
+async function shareRaffleWhatsApp(idRifa){try{const r=await run('obtenerEnlaceWhatsAppRifa',token,idRifa);window.open(r.whatsappUrl,'_blank');toast('Enlace de rifa preparado para WhatsApp.')}catch(e){toast(err(e))}}
+function openModal(html){$('modalContent').innerHTML=html;$('modal').classList.remove('hidden')}
+function closeModal(){$('modal').classList.add('hidden')}
+function openRaffleModal(){openModal(`<h3>Nueva rifa</h3><div class="field"><label>Código</label><input id="rId" placeholder="R002"></div><div class="field"><label>Nombre</label><input id="rName"></div><div class="field"><label>Premio</label><input id="rPrize"></div><div class="field"><label>Descripción</label><input id="rDesc"></div><div class="field"><label>Precio por número</label><input id="rPrice" type="number" step="0.01"></div><div class="field"><label>Cantidad de números</label><input id="rQty" type="number" value="1000"></div><div class="field"><label>Fecha del sorteo</label><input id="rDate" type="date"></div><div class="field"><label>Hora</label><input id="rTime" type="time" value="20:00"></div><div class="field"><label>Imagen del premio <span class="sub">(opcional)</span></label><input id="rImageFile" type="file" accept="image/jpeg,image/png,image/webp" onchange="previewNewRaffleImage(this)"><div class="sub" style="margin-top:6px">JPG, PNG o WEBP · máximo 5 MB</div></div><div id="newRaffleImagePreview" class="raffle-image-modal-preview"><div class="image-placeholder">Selecciona una imagen para ver la vista previa.</div></div><div id="newRaffleProgress" class="notice hidden" style="margin-top:12px">Creando rifa…</div><button id="createRaffleBtn" class="btn primary" style="margin-top:18px;width:100%" onclick="createRaffle()">Crear rifa</button>`)}
+function previewNewRaffleImage(input){const file=input.files&&input.files[0];if(!file)return;if(!['image/jpeg','image/png','image/webp'].includes(file.type)){toast('Solo se permiten JPG, PNG o WEBP.');input.value='';$('newRaffleImagePreview').innerHTML='<div class="image-placeholder">Selecciona una imagen válida.</div>';return;}if(file.size>5*1024*1024){toast('La imagen no puede superar 5 MB.');input.value='';$('newRaffleImagePreview').innerHTML='<div class="image-placeholder">La imagen supera 5 MB.</div>';return;}const reader=new FileReader();reader.onload=e=>{$('newRaffleImagePreview').innerHTML=`<img src="${e.target.result}" alt="Vista previa del premio">`};reader.readAsDataURL(file)}
+async function createRaffle(){const btn=$('createRaffleBtn');const progress=$('newRaffleProgress');const file=$('rImageFile')&&$('rImageFile').files&&$('rImageFile').files[0];if(file&&(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024)){toast('La imagen no es válida o supera 5 MB.');return;}const d={idRifa:$('rId').value,nombre:$('rName').value,premio:$('rPrize').value,descripcion:$('rDesc').value,precio:Number($('rPrice').value),cantidadNumeros:Number($('rQty').value),fechaSorteo:$('rDate').value,horaSorteo:$('rTime').value,estado:'ACTIVA'};const leerImagen=()=>new Promise((resolve,reject)=>{if(!file)return resolve(null);const reader=new FileReader();reader.onload=e=>resolve({nombre:file.name,mimeType:file.type,base64:String(e.target.result).split(',')[1]||''});reader.onerror=()=>reject(new Error('No se pudo leer la imagen.'));reader.readAsDataURL(file)});try{btn.disabled=true;progress.classList.remove('hidden');progress.textContent=file?'Creando rifa e imagen en una sola operación…':'Creando rifa…';const imagen=await leerImagen();const r=await run('crearRifaCompleta',token,d,imagen);closeModal();toast(r.mensaje);loadRaffles();loadDashboard()}catch(e){btn.disabled=false;progress.classList.add('hidden');toast(err(e))}}
+function openUserModal(){openModal(`<h3>Nuevo usuario</h3><div class="field"><label>Nombre</label><input id="uName"></div><div class="field"><label>Email</label><input id="uEmail" type="email"></div><div class="field"><label>Rol</label><select id="uRole"><option>ADMIN</option><option>OPERADOR</option><option>SUPER_ADMIN</option></select></div><div class="field"><label>Contraseña inicial</label><input id="uPassword" type="password" minlength="10" autocomplete="new-password"></div><div class="notice" style="margin-top:15px">Mínimo 10 caracteres. La contraseña se guarda como hash y no se muestra en el panel.</div><button class="btn primary" style="margin-top:5px;width:100%" onclick="createUser()">Crear usuario</button>`)}
+async function createUser(){const d={nombre:$('uName').value,email:$('uEmail').value,rol:$('uRole').value,password:$('uPassword').value};try{const r=await run('crearUsuario',token,d);closeModal();toast(r.mensaje);loadUsers()}catch(e){toast(err(e))}}
+
+if(token)showApp();
+</script>
+</body>
+</html>
+
