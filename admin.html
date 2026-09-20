@@ -112,7 +112,26 @@ async function apiCall(action, ...args){
 
   <section id="pagos" class="section"><div class="card"><div class="bar"><div><h3 style="margin:0">Pagos por revisar</h3><div class="sub">Los números se convierten en vendidos solamente al aprobar.</div></div><button class="btn ghost small" onclick="loadPayments()">Actualizar</button></div><div id="paymentsBox"></div></div></section>
 
-  <section id="pedidos" class="section"><div class="card"><div class="bar"><h3 style="margin:0">Pedidos</h3><button class="btn ghost small" onclick="loadOrders()">Actualizar</button></div><div id="ordersBox"></div></div></section>
+  <section id="pedidos" class="section">
+  <div class="grid" style="margin-bottom:14px">
+    <div class="metric"><div class="sub">PEDIDOS</div><strong id="oTotal">0</strong></div>
+    <div class="metric"><div class="sub">PAGADOS</div><strong id="oPagados">0</strong></div>
+    <div class="metric"><div class="sub">EN REVISIÓN</div><strong id="oRevision">0</strong></div>
+    <div class="metric"><div class="sub">TOTAL PAGADO</div><strong id="oMonto">$0,00</strong></div>
+  </div>
+  <div class="card">
+    <div class="bar">
+      <div><h3 style="margin:0">Pedidos / Ventas</h3><div class="sub">Consulta el ciclo completo de cada venta.</div></div>
+      <button class="btn ghost small" onclick="loadOrders()">Actualizar</button>
+    </div>
+    <div class="config-grid" style="margin:14px 0">
+      <div class="field"><label>Buscar</label><input id="orderSearch" placeholder="Pedido, cliente, cédula, teléfono o número" oninput="renderOrders()"></div>
+      <div class="field"><label>Rifa</label><select id="orderRaffleFilter" onchange="renderOrders()"><option value="">Todas</option></select></div>
+      <div class="field"><label>Estado pago</label><select id="orderPaymentFilter" onchange="renderOrders()"><option value="">Todos</option><option>PENDIENTE</option><option>EN_REVISION</option><option>APROBADO</option><option>RECHAZADO</option><option>SIN_PAGO</option></select></div>
+    </div>
+    <div id="ordersBox"></div>
+  </div>
+</section>
 
   <section id="rifas" class="section"><div class="card"><div class="bar"><h3 style="margin:0">Rifas</h3><button id="newRaffleBtn" class="btn primary small" onclick="openRaffleModal()">Nueva rifa</button></div><div id="rafflesBox"></div></div></section>
 
@@ -224,49 +243,7 @@ async function loadDashboard(){
 }
 
 async function loadPayments(){try{const rows=await run('obtenerPagosPendientes',token);if(!rows.length){$('paymentsBox').innerHTML='<div class="notice">No hay pagos pendientes o aprobados.</div>';return}let h='<div class="table-wrap"><table class="table"><thead><tr><th>Pedido</th><th>Método</th><th>Monto</th><th>Estado</th><th>Comprobante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>';rows.forEach(p=>{const ok=String(p.estado||'').toUpperCase()==='APROBADO';h+=`<tr><td><b>${esc(p.idPedido)}</b></td><td>${esc(p.metodo)}</td><td>${money(p.monto)}</td><td>${status(p.estado)}</td><td>${p.comprobante?`<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`:'—'}</td><td>${esc(p.fechaPago)}</td><td><div class="actions">${ok?`<button class="btn primary small" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:`<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button><button class="btn danger small" onclick="reject('${esc(p.idPago)}')">Rechazar</button>`}</div></td></tr>`});$('paymentsBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
-async function generateTicket(idPedido){
-  try{
-    toast('Generando boleto PDF...');
-    const r=await run('generarBoletoPagoAprobado',token,idPedido);
-    const nums=esc((r.numeros||[]).join(', '));
-    const img=r.imagenPremio
-      ? `<img src="${esc(r.imagenPremio)}" alt="Premio" style="width:100%;max-height:220px;object-fit:contain;border-radius:14px;background:#071a2e;padding:8px">`
-      : '';
-
-    openModal(`
-      <div style="max-width:760px">
-        <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
-          <div>
-            <h3 style="margin:0">🎟️ Boleto oficial generado</h3>
-            <p class="sub">PDF moderno listo para entregar al cliente.</p>
-          </div>
-          <span class="status aprobado">APROBADO</span>
-        </div>
-
-        <div style="display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,1.2fr);gap:14px;margin-top:16px">
-          <div>${img}</div>
-          <div class="card" style="margin:0">
-            <div class="sub">Cliente</div><b>${esc(r.cliente||'')}</b>
-            <div class="sub" style="margin-top:10px">Rifa</div><b>${esc(r.rifa||'')}</b>
-            <div class="sub" style="margin-top:10px">Número(s)</div><div style="font-size:24px;font-weight:900;color:#39bdf8">${nums}</div>
-            <div class="sub" style="margin-top:10px">Monto</div><b>${money(r.monto||0)}</b>
-            <div class="sub" style="margin-top:10px">Sorteo</div><b>${esc(r.fechaSorteo||'Por definir')} ${esc(r.horaSorteo||'')}</b>
-          </div>
-        </div>
-
-        <div class="actions" style="margin-top:18px;gap:10px;flex-wrap:wrap">
-          <a class="btn primary" href="${esc(r.url)}" target="_blank" rel="noopener">🎟️ Abrir boleto PDF</a>
-          <a class="btn ghost" href="${esc(r.downloadUrl||r.url)}" target="_blank" rel="noopener">⬇ Descargar</a>
-          <button class="btn primary" onclick="window.open('${esc(r.whatsappUrl)}','_blank')">💬 Enviar por WhatsApp</button>
-          <button class="btn ghost" onclick="window.open('${esc(r.url)}','_blank')">🖨 Imprimir</button>
-        </div>
-      </div>
-    `);
-    toast(r.mensaje||'Boleto generado correctamente.');
-  }catch(e){
-    toast(err(e));
-  }
-}
+async function generateTicket(idPedido){try{const r=await run('generarBoletoPagoAprobado',token,idPedido);openModal(`<h3>🎟️ Boleto generado</h3><p class="sub">Números: <b>${esc((r.numeros||[]).join(', '))}</b></p><p><a class="btn primary" href="${esc(r.url)}" target="_blank">Abrir boleto PDF</a> <button class="btn ghost" onclick="window.open('${esc(r.whatsappUrl)}','_blank')">💬 WhatsApp</button></p>`);toast(r.mensaje)}catch(e){toast(err(e))}}
 async function approve(id){
   const obs=prompt('Observación opcional para aprobar:','Pago verificado');
   if(obs===null)return;
@@ -294,7 +271,110 @@ async function viewProof(id){
   }catch(e){toast(err(e))}
 }
 
-async function loadOrders(){try{const rows=await run('obtenerPedidos',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Código</th><th>Rifa</th><th>Total</th><th>Estado</th><th>Fecha</th></tr></thead><tbody>';rows.slice().reverse().forEach(p=>h+=`<tr><td>${esc(p.codigo)}</td><td>${esc(p.idRifa)}</td><td>${money(p.total)}</td><td>${status(p.estado)}</td><td>${esc(p.fechaCreacion)}</td></tr>`);$('ordersBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
+let ordersData=[];
+
+async function loadOrders(){
+  try{
+    ordersData=await run('obtenerPedidos',token);
+
+    const sel=$('orderRaffleFilter');
+    const actual=sel ? sel.value : '';
+    if(sel){
+      const rifas=[...new Map(ordersData.filter(x=>x.idRifa).map(x=>[x.idRifa,x.rifa||x.idRifa])).entries()];
+      sel.innerHTML='<option value="">Todas</option>'+rifas.map(([id,n])=>`<option value="${esc(id)}">${esc(id)} - ${esc(n)}</option>`).join('');
+      if([...sel.options].some(o=>o.value===actual)) sel.value=actual;
+    }
+
+    $('oTotal').textContent=ordersData.length;
+    $('oPagados').textContent=ordersData.filter(x=>String(x.estadoPago).toUpperCase()==='APROBADO').length;
+    $('oRevision').textContent=ordersData.filter(x=>String(x.estadoPago).toUpperCase()==='EN_REVISION').length;
+    $('oMonto').textContent=money(ordersData.filter(x=>String(x.estadoPago).toUpperCase()==='APROBADO').reduce((n,x)=>n+Number(x.total||0),0));
+
+    renderOrders();
+  }catch(e){toast(err(e))}
+}
+
+function renderOrders(){
+  const q=String(($('orderSearch')||{}).value||'').trim().toLowerCase();
+  const rifa=String(($('orderRaffleFilter')||{}).value||'');
+  const pago=String(($('orderPaymentFilter')||{}).value||'').toUpperCase();
+
+  const rows=ordersData.filter(p=>{
+    if(rifa && p.idRifa!==rifa) return false;
+    if(pago && String(p.estadoPago||'').toUpperCase()!==pago) return false;
+    if(q){
+      const bolsa=[p.codigo,p.cliente,p.cedula,p.telefono,p.idRifa,p.rifa,(p.numeros||[]).join(' ')].join(' ').toLowerCase();
+      if(!bolsa.includes(q)) return false;
+    }
+    return true;
+  }).slice().reverse();
+
+  if(!rows.length){
+    $('ordersBox').innerHTML='<div class="notice">No hay pedidos que coincidan con los filtros.</div>';
+    return;
+  }
+
+  let h='<div class="table-wrap"><table class="table"><thead><tr><th>Pedido</th><th>Cliente</th><th>Rifa</th><th>Número(s)</th><th>Total</th><th>Pago</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>';
+  rows.forEach(p=>{
+    h+=`<tr>
+      <td><b>${esc(p.codigo)}</b></td>
+      <td>${esc(p.cliente||'—')}<div class="sub">${esc(p.cedula||'')} · ${esc(p.telefono||'')}</div></td>
+      <td><b>${esc(p.idRifa)}</b><div class="sub">${esc(p.rifa||'')}</div></td>
+      <td><b>${esc((p.numeros||[]).join(', ')||'—')}</b></td>
+      <td>${money(p.total)}</td>
+      <td>${status(p.estadoPago||p.estado)}</td>
+      <td>${esc(p.fechaCreacion)}</td>
+      <td><button class="btn primary small" onclick="viewOrder('${esc(p.idPedido)}')">Ver detalle</button></td>
+    </tr>`;
+  });
+  $('ordersBox').innerHTML=h+'</tbody></table></div>';
+}
+
+async function viewOrder(idPedido){
+  try{
+    const p=await run('obtenerDetallePedidoAdmin',token,idPedido);
+    const pago=(p.pagos||[]).slice(-1)[0]||{};
+    openModal(`
+      <div style="max-width:800px">
+        <div class="bar">
+          <div><h3 style="margin:0">🧾 ${esc(p.codigo)}</h3><div class="sub">Detalle completo del pedido</div></div>
+          ${status(pago.estado||p.estado)}
+        </div>
+
+        <div class="grid" style="margin-top:16px">
+          <div class="card"><div class="sub">Cliente</div><b>${esc(p.cliente.nombre||'—')}</b><div class="sub">${esc(p.cliente.cedula||'')} · ${esc(p.cliente.telefono||'')}</div><div class="sub">${esc(p.cliente.email||'')} · ${esc(p.cliente.ciudad||'')}</div></div>
+          <div class="card"><div class="sub">Rifa</div><b>${esc(p.rifa.idRifa)} - ${esc(p.rifa.nombre)}</b><div class="sub">${esc(p.rifa.premio||'')}</div><div class="sub">Sorteo: ${esc(p.rifa.fechaSorteo||'')} ${esc(p.rifa.horaSorteo||'')}</div></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="sub">Número(s)</div>
+          <div style="font-size:26px;font-weight:900;color:#39bdf8">${esc((p.numeros||[]).map(n=>n.numero).join(', '))}</div>
+          <div style="margin-top:8px">Total: <b>${money(p.total)}</b> · Pedido: ${status(p.estado)}</div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h4 style="margin:0 0 10px">Pago</h4>
+          ${p.pagos.length ? p.pagos.map(pg=>`
+            <div><b>${esc(pg.metodo)}</b> · ${money(pg.monto)} · ${status(pg.estado)}</div>
+            <div class="sub">Fecha: ${esc(pg.fechaPago||'—')} · Comprobante: ${pg.comprobante?'Sí':'No'}</div>
+            ${pg.observaciones?`<div class="sub">Observación: ${esc(pg.observaciones)}</div>`:''}
+          `).join('<hr style="border:0;border-top:1px solid #20344b;margin:12px 0">') : '<div class="sub">Sin registro de pago.</div>'}
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h4 style="margin:0 0 10px">Reserva</h4>
+          ${p.reservas.length ? p.reservas.map(r=>`<div>${status(r.estado)} <span class="sub">Reserva: ${esc(r.fechaReserva)} · Expira: ${esc(r.expira)}</span></div>`).join('') : '<div class="sub">Sin registro de reserva.</div>'}
+        </div>
+
+        <div class="actions" style="margin-top:16px">
+          ${pago.comprobante?`<button class="btn ghost" onclick="viewProof('${esc(pago.idPago)}')">📎 Ver comprobante</button>`:''}
+          ${String(pago.estado||'').toUpperCase()==='APROBADO'?`<button class="btn primary" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:''}
+        </div>
+      </div>
+    `);
+  }catch(e){toast(err(e))}
+}
+
 async function loadRaffles(){
   try{
     const rows=await run('obtenerTodasLasRifas',token);
