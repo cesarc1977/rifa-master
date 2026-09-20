@@ -1329,6 +1329,18 @@ async function apiCall(action, ...args){
   function enviarReserva(event){
     event.preventDefault();
 
+    // Si todavía existe un pedido activo, primero debe enviarse SU comprobante.
+    // Así evitamos crear otro pedido y sobrescribir idPedidoActual.
+    if(idPedidoActual){
+      mostrarAviso(
+        'Primero envía el comprobante del pedido actual. Cuando se confirme la recepción, el formulario quedará libre automáticamente para la siguiente venta.',
+        true
+      );
+      const panelActual = document.getElementById('proofPanel');
+      if(panelActual) panelActual.scrollIntoView({behavior:'smooth', block:'center'});
+      return;
+    }
+
     if(seleccionados.size === 0){
       mostrarAviso(
         'Selecciona al menos un número.',
@@ -1429,8 +1441,23 @@ async function apiCall(action, ...args){
     metodoPagoUltimo = metodoReserva;
 
     const proofPanel = document.getElementById('proofPanel');
+    const proofFileNuevo = document.getElementById('proofFile');
+    const proofBtnNuevo = document.getElementById('proofBtn');
+    const proofStatusNuevo = document.getElementById('proofStatus');
+
+    // Reinicio obligatorio: un pedido nuevo nunca puede heredar
+    // el archivo, botón o estado visual del pedido anterior.
+    if(proofFileNuevo){
+      proofFileNuevo.value = '';
+      proofFileNuevo.disabled = false;
+    }
+    if(proofBtnNuevo){
+      proofBtnNuevo.disabled = false;
+      proofBtnNuevo.textContent = 'Enviar comprobante';
+    }
+
     proofPanel.classList.toggle('show', metodoReserva === 'TRANSFERENCIA');
-    document.getElementById('proofStatus').textContent =
+    proofStatusNuevo.textContent =
       metodoReserva === 'TRANSFERENCIA'
         ? 'Adjunta el comprobante para que el administrador pueda validar tu pago.'
         : 'Pago en efectivo: espera la confirmación del operador.';
@@ -1483,13 +1510,9 @@ async function apiCall(action, ...args){
       try {
         const base64 = String(reader.result).split(',')[1] || '';
         apiCall('subirComprobante', idPedidoActual, file.name, file.type, base64).then(res => {
-            // El comprobante ya quedó asociado al pedido anterior y el pago
-            // permanece EN_REVISION en el servidor. Liberamos solamente la
-            // interfaz local para que el operador pueda iniciar otra venta.
-            mostrarAviso(
-              'Comprobante enviado correctamente. El pago quedó en revisión y ya puedes realizar una nueva venta.',
-              false
-            );
+            // El backend confirmó la recepción. Desde aquí el pedido anterior
+            // queda EN_REVISION, pero la interfaz queda libre para otra venta.
+            const pedidoCerrado = idPedidoActual;
 
             idPedidoActual = '';
             numerosPedidoActual.clear();
@@ -1497,37 +1520,51 @@ async function apiCall(action, ...args){
             seleccionados.clear();
 
             const orderResult = document.getElementById('orderResult');
-            if(orderResult) orderResult.classList.remove('show');
-
             const orderCode = document.getElementById('orderCode');
-            if(orderCode) orderCode.textContent = '—';
-
             const orderMessage = document.getElementById('orderMessage');
+            const proofPanel = document.getElementById('proofPanel');
+            const proofStatus = document.getElementById('proofStatus');
+            const form = document.getElementById('reservationForm');
+
+            if(orderResult) orderResult.classList.remove('show');
+            if(orderCode) orderCode.textContent = '—';
             if(orderMessage) orderMessage.textContent = '';
 
-            // Limpiar comprobante anterior.
+            // Limpiar completamente el control de archivo.
             input.value = '';
             input.disabled = false;
             btn.disabled = false;
             btn.textContent = 'Enviar comprobante';
-
-            const proofStatus = document.getElementById('proofStatus');
             if(proofStatus) proofStatus.textContent = '';
-
-            const proofPanel = document.getElementById('proofPanel');
             if(proofPanel) proofPanel.classList.remove('show');
 
-            // Limpiar datos del cliente anterior y preparar una venta nueva.
-            const form = document.getElementById('reservationForm');
             if(form) form.reset();
-
             metodoPagoUltimo = 'TRANSFERENCIA';
             cambiarPago();
             actualizarSeleccion();
 
-            // El número anterior seguirá reservado/en revisión porque aquí
-            // no modificamos el backend. Solo refrescamos la cuadrícula.
-            cargarNumeros();
+            mostrarAviso(
+              'Comprobante recibido y enviado a revisión. Pedido ' + pedidoCerrado +
+              ' cerrado en esta pantalla. Ya puedes realizar una nueva venta.',
+              false
+            );
+
+            // Segundo reinicio en el siguiente ciclo del navegador.
+            // Esto evita que algunos navegadores conserven visualmente
+            // el nombre del archivo anterior.
+            setTimeout(() => {
+              const pf = document.getElementById('proofFile');
+              const pb = document.getElementById('proofBtn');
+              const pp = document.getElementById('proofPanel');
+              const ps = document.getElementById('proofStatus');
+
+              if(pf){ pf.value=''; pf.disabled=false; }
+              if(pb){ pb.disabled=false; pb.textContent='Enviar comprobante'; }
+              if(ps) ps.textContent='';
+              if(pp) pp.classList.remove('show');
+
+              cargarNumeros();
+            }, 100);
           }).catch(err => {
             btn.disabled = false;
             btn.textContent = 'Enviar comprobante';
