@@ -899,6 +899,7 @@ async function apiCall(action, ...args){
   let numeros = [];
   let seleccionados = new Set();
   let idPedidoActual = '';
+  let numerosPedidoActual = new Set();
   let countdownTimer = null;
   let metodoPagoUltimo = 'TRANSFERENCIA';
 
@@ -966,6 +967,20 @@ async function apiCall(action, ...args){
       renderNumeros();
       actualizarEstadisticasDesdeNumeros();
 
+      // Si existe un pedido activo en esta misma página y todos sus números
+      // ya aparecen como VENDIDO, significa que el administrador aprobó el pago.
+      // Cerramos el ciclo anterior para que el cliente pueda hacer una nueva
+      // reserva sin que quede anclado el comprobante anterior.
+      if(idPedidoActual && numerosPedidoActual.size > 0){
+        const estadosPedido = [...numerosPedidoActual].map(numero => mapa.get(Number(numero)));
+        const pedidoAprobado = estadosPedido.length > 0 &&
+          estadosPedido.every(estado => estado === 'VENDIDO');
+
+        if(pedidoAprobado){
+          limpiarPedidoAprobado();
+        }
+      }
+
       if(retirados.length){
         mostrarAviso(
           'Uno o más números seleccionados dejaron de estar disponibles: ' +
@@ -980,6 +995,62 @@ async function apiCall(action, ...args){
     }finally{
       actualizandoNumeros = false;
     }
+  }
+
+  function limpiarPedidoAprobado(){
+    // Liberar el pedido anterior del estado local del navegador.
+    idPedidoActual = '';
+    numerosPedidoActual.clear();
+
+    // Ocultar la reserva anterior.
+    const orderResult = document.getElementById('orderResult');
+    if(orderResult){
+      orderResult.classList.remove('show');
+    }
+
+    const orderCode = document.getElementById('orderCode');
+    if(orderCode) orderCode.textContent = '—';
+
+    const orderMessage = document.getElementById('orderMessage');
+    if(orderMessage) orderMessage.textContent = '';
+
+    // Limpiar y ocultar el comprobante anterior.
+    const proofPanel = document.getElementById('proofPanel');
+    if(proofPanel){
+      proofPanel.classList.remove('show');
+    }
+
+    const proofFile = document.getElementById('proofFile');
+    if(proofFile){
+      proofFile.value = '';
+      proofFile.disabled = false;
+    }
+
+    const proofBtn = document.getElementById('proofBtn');
+    if(proofBtn){
+      proofBtn.disabled = false;
+      proofBtn.textContent = 'Enviar comprobante';
+    }
+
+    const proofStatus = document.getElementById('proofStatus');
+    if(proofStatus){
+      proofStatus.textContent = '';
+    }
+
+    // El formulario queda preparado para una nueva compra.
+    const form = document.getElementById('reservationForm');
+    if(form){
+      form.reset();
+    }
+
+    metodoPagoUltimo = 'TRANSFERENCIA';
+    cambiarPago();
+    actualizarSeleccion();
+
+    mostrarAviso(
+      '✓ Pago aprobado. Tu compra anterior fue confirmada. Ya puedes seleccionar números para una nueva reserva.',
+      false
+    );
   }
 
   function actualizarEstadisticasDesdeNumeros(){
@@ -1323,6 +1394,10 @@ async function apiCall(action, ...args){
       return;
     }
 
+    // Conservamos los números de este pedido para detectar automáticamente
+    // cuándo el administrador aprueba el pago y pasan a VENDIDO.
+    numerosPedidoActual = new Set([...seleccionados].map(Number));
+
     seleccionados.clear();
     renderNumeros();
 
@@ -1648,4 +1723,3 @@ async function apiCall(action, ...args){
 
 </body>
 </html>
-
