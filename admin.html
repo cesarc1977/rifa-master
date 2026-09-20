@@ -135,7 +135,25 @@ async function apiCall(action, ...args){
 
   <section id="rifas" class="section"><div class="card"><div class="bar"><h3 style="margin:0">Rifas</h3><button id="newRaffleBtn" class="btn primary small" onclick="openRaffleModal()">Nueva rifa</button></div><div id="rafflesBox"></div></div></section>
 
-  <section id="clientes" class="section"><div class="card"><div class="bar"><h3 style="margin:0">Clientes</h3><button class="btn ghost small" onclick="loadClients()">Actualizar</button></div><div id="clientsBox"></div></div></section>
+  <section id="clientes" class="section">
+  <div class="grid" style="margin-bottom:14px">
+    <div class="metric"><div class="sub">CLIENTES</div><strong id="cTotal">0</strong></div>
+    <div class="metric"><div class="sub">COMPRAS APROBADAS</div><strong id="cCompras">0</strong></div>
+    <div class="metric"><div class="sub">NÚMEROS VENDIDOS</div><strong id="cNumeros">0</strong></div>
+    <div class="metric"><div class="sub">VENTAS A CLIENTES</div><strong id="cMonto">$0,00</strong></div>
+  </div>
+  <div class="card">
+    <div class="bar">
+      <div><h3 style="margin:0">Clientes</h3><div class="sub">Historial de compras y participación por cliente.</div></div>
+      <button class="btn ghost small" onclick="loadClients()">Actualizar</button>
+    </div>
+    <div class="field" style="margin:14px 0">
+      <label>Buscar cliente</label>
+      <input id="clientSearch" placeholder="Nombre, cédula, teléfono, email o ciudad" oninput="renderClients()">
+    </div>
+    <div id="clientsBox"></div>
+  </div>
+</section>
 
   <section id="usuarios" class="section"><div class="card"><div class="bar"><div><h3 style="margin:0">Usuarios</h3><div class="sub">Roles: SUPER_ADMIN, ADMIN y OPERADOR.</div></div><button id="newUserBtn" class="btn primary small" onclick="openUserModal()">Nuevo usuario</button></div><div id="usersBox"></div></div></section>
 
@@ -416,7 +434,98 @@ async function toggleRaffleState(idRifa,nuevoEstado){
   }catch(e){toast(err(e))}
 }
 
-async function loadClients(){try{const rows=await run('obtenerClientes',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Cédula</th><th>Teléfono</th><th>Email</th><th>Ciudad</th></tr></thead><tbody>';rows.slice().reverse().forEach(c=>h+=`<tr><td>${esc(c.nombre)} ${esc(c.apellido)}</td><td>${esc(c.cedula)}</td><td>${esc(c.telefono)}</td><td>${esc(c.email)}</td><td>${esc(c.ciudad)}</td></tr>`);$('clientsBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
+let clientsData=[];
+
+async function loadClients(){
+  try{
+    clientsData=await run('obtenerClientes',token);
+
+    $('cTotal').textContent=clientsData.length;
+    $('cCompras').textContent=clientsData.reduce((n,c)=>n+Number(c.comprasAprobadas||0),0);
+    $('cNumeros').textContent=clientsData.reduce((n,c)=>n+Number(c.numerosComprados||0),0);
+    $('cMonto').textContent=money(clientsData.reduce((n,c)=>n+Number(c.totalGastado||0),0));
+
+    renderClients();
+  }catch(e){toast(err(e))}
+}
+
+function renderClients(){
+  const q=String(($('clientSearch')||{}).value||'').trim().toLowerCase();
+  const rows=clientsData.filter(c=>{
+    if(!q) return true;
+    return [c.nombre,c.apellido,c.cedula,c.telefono,c.email,c.ciudad]
+      .join(' ').toLowerCase().includes(q);
+  }).slice().reverse();
+
+  if(!rows.length){
+    $('clientsBox').innerHTML='<div class="notice">No hay clientes que coincidan con la búsqueda.</div>';
+    return;
+  }
+
+  let h='<div class="table-wrap"><table class="table"><thead><tr><th>Cliente</th><th>Cédula</th><th>Teléfono</th><th>Ciudad</th><th>Compras</th><th>Números</th><th>Total gastado</th><th>Acciones</th></tr></thead><tbody>';
+  rows.forEach(c=>{
+    h+=`<tr>
+      <td><b>${esc(c.nombre)} ${esc(c.apellido)}</b><div class="sub">${esc(c.email||'')}</div></td>
+      <td>${esc(c.cedula)}</td>
+      <td>${esc(c.telefono)}</td>
+      <td>${esc(c.ciudad)}</td>
+      <td>${c.comprasAprobadas||0}</td>
+      <td>${c.numerosComprados||0}</td>
+      <td><b>${money(c.totalGastado||0)}</b></td>
+      <td><button class="btn primary small" onclick="viewClient('${esc(c.idCliente)}')">Ver historial</button></td>
+    </tr>`;
+  });
+  $('clientsBox').innerHTML=h+'</tbody></table></div>';
+}
+
+async function viewClient(idCliente){
+  try{
+    const r=await run('obtenerDetalleClienteAdmin',token,idCliente);
+    const c=r.cliente, s=r.resumen;
+
+    openModal(`
+      <div style="max-width:900px">
+        <div class="bar">
+          <div><h3 style="margin:0">👤 ${esc(c.nombre)} ${esc(c.apellido)}</h3><div class="sub">Historial del cliente</div></div>
+          <div class="sub">Registrado: ${esc(c.fechaRegistro||'—')}</div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <div class="grid">
+            <div><div class="sub">Cédula</div><b>${esc(c.cedula||'—')}</b></div>
+            <div><div class="sub">Teléfono</div><b>${esc(c.telefono||'—')}</b></div>
+            <div><div class="sub">Email</div><b>${esc(c.email||'—')}</b></div>
+            <div><div class="sub">Ciudad</div><b>${esc(c.ciudad||'—')}</b></div>
+          </div>
+        </div>
+
+        <div class="grid" style="margin-top:12px">
+          <div class="metric"><div class="sub">COMPRAS</div><strong>${s.comprasAprobadas}</strong></div>
+          <div class="metric"><div class="sub">RIFAS</div><strong>${s.rifasParticipadas}</strong></div>
+          <div class="metric"><div class="sub">NÚMEROS</div><strong>${s.numerosComprados}</strong></div>
+          <div class="metric"><div class="sub">TOTAL GASTADO</div><strong>${money(s.totalGastado)}</strong></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h4 style="margin:0 0 12px">Historial de compras</h4>
+          ${r.compras.length ? `<div class="table-wrap"><table class="table">
+            <thead><tr><th>Pedido</th><th>Rifa</th><th>Número(s)</th><th>Total</th><th>Pago</th><th>Fecha</th><th></th></tr></thead>
+            <tbody>${r.compras.map(x=>`<tr>
+              <td><b>${esc(x.codigo)}</b></td>
+              <td>${esc(x.idRifa)}<div class="sub">${esc(x.rifa||'')}</div></td>
+              <td><b>${esc((x.numeros||[]).join(', ')||'—')}</b></td>
+              <td>${money(x.total)}</td>
+              <td>${status(x.estadoPago)}</td>
+              <td>${esc(x.fecha)}</td>
+              <td><button class="btn ghost small" onclick="viewOrder('${esc(x.idPedido)}')">Pedido</button></td>
+            </tr>`).join('')}</tbody>
+          </table></div>` : '<div class="notice">Este cliente todavía no tiene pedidos registrados.</div>'}
+        </div>
+      </div>
+    `);
+  }catch(e){toast(err(e))}
+}
+
 async function loadUsers(){try{const rows=await run('obtenerUsuarios',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Estado</th><th>Creación</th></tr></thead><tbody>';rows.forEach(u=>h+=`<tr><td>${esc(u.nombre)}</td><td>${esc(u.email)}</td><td>${esc(u.rol)}</td><td>${status(u.estado)}</td><td>${esc(u.fechaCreacion)}</td></tr>`);$('usersBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
 async function loadAudit(){try{const rows=await run('obtenerAuditoria',token);let h='<div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>ID</th><th>Detalle</th></tr></thead><tbody>';rows.slice(0,300).forEach(a=>h+=`<tr><td>${esc(a.fecha)}</td><td>${esc(a.usuario)}</td><td>${esc(a.accion)}</td><td>${esc(a.entidad)}</td><td>${esc(a.idEntidad)}</td><td>${esc(a.detalle)}</td></tr>`);$('auditBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
 
