@@ -900,6 +900,7 @@ async function apiCall(action, ...args){
   let seleccionados = new Set();
   let idPedidoActual = '';
   let numerosPedidoActual = new Set();
+  let numerosReservaEnCurso = new Set();
   let countdownTimer = null;
   let metodoPagoUltimo = 'TRANSFERENCIA';
 
@@ -1001,6 +1002,7 @@ async function apiCall(action, ...args){
     // Liberar el pedido anterior del estado local del navegador.
     idPedidoActual = '';
     numerosPedidoActual.clear();
+    numerosReservaEnCurso.clear();
 
     // Ocultar la reserva anterior.
     const orderResult = document.getElementById('orderResult');
@@ -1362,12 +1364,18 @@ async function apiCall(action, ...args){
       metodoPago: metodo
     };
 
+    // IMPORTANTE: conservar los números enviados al backend.
+    // La actualización automática puede cambiar 'seleccionados' mientras
+    // esperamos la respuesta de la reserva.
+    numerosReservaEnCurso = new Set(datos.numeros.map(Number));
+
     apiCall('reservarNumeros', datos).then(respuesta => {
         btn.disabled = false;
         btn.textContent = 'Reservar números';
 
         procesarReservaExitosa(respuesta);
       }).catch(error => {
+        numerosReservaEnCurso.clear();
         btn.disabled = seleccionados.size === 0;
         btn.textContent = 'Reservar números';
 
@@ -1394,9 +1402,11 @@ async function apiCall(action, ...args){
       return;
     }
 
-    // Conservamos los números de este pedido para detectar automáticamente
-    // cuándo el administrador aprueba el pago y pasan a VENDIDO.
-    numerosPedidoActual = new Set([...seleccionados].map(Number));
+    // Conservamos exactamente los números enviados en esta reserva.
+    // No usamos 'seleccionados' aquí porque el refresco automático puede
+    // haberlo vaciado mientras el backend procesaba la solicitud.
+    numerosPedidoActual = new Set([...numerosReservaEnCurso].map(Number));
+    numerosReservaEnCurso.clear();
 
     seleccionados.clear();
     renderNumeros();
