@@ -97,17 +97,47 @@ async function apiCall(action, ...args){
   <section id="dashboard" class="section active">
     <div class="card">
       <div class="bar">
-        <div>
-          <h3 style="margin:0">Estado del sistema</h3>
-          <div class="sub">Consulta el total general o filtra el resumen por una rifa específica.</div>
-        </div>
-        <div style="min-width:260px">
-          <label class="sub" for="dashboardRaffleFilter">Rifa</label>
-          <select id="dashboardRaffleFilter" onchange="loadDashboard()" style="width:100%;margin-top:5px"></select>
-        </div>
+        <div><h3 style="margin:0">Dashboard administrativo</h3><div class="sub">Ventas, pagos, reservas y avance de rifas en una sola vista.</div></div>
+        <div style="min-width:260px"><label class="sub" for="dashboardRaffleFilter">Rifa</label><select id="dashboardRaffleFilter" onchange="loadDashboard()" style="width:100%;margin-top:5px"></select></div>
       </div>
-      <div id="dashboardText" class="sub" style="margin-top:14px">Cargando...</div>
     </div>
+
+    <div class="grid" style="margin-top:14px">
+      <div class="metric"><div class="sub">RECAUDADO</div><strong id="mRecaudado">$0,00</strong><div class="sub" id="dAprobados">0 pagos aprobados</div></div>
+      <div class="metric"><div class="sub">NÚMEROS VENDIDOS</div><strong id="mVendidos">0</strong><div class="sub" id="dAvance">0% de avance</div></div>
+      <div class="metric"><div class="sub">PAGOS POR REVISAR</div><strong id="mPagos">0</strong><div class="sub" id="dRevision">0 en revisión</div></div>
+      <div class="metric"><div class="sub">CLIENTES</div><strong id="mClientes">0</strong><div class="sub" id="dTicket">Ticket medio $0,00</div></div>
+    </div>
+
+    <div class="grid" style="margin-top:14px">
+      <div class="card"><div class="sub">DISPONIBLES</div><strong id="mDisponibles" style="font-size:25px">0</strong></div>
+      <div class="card"><div class="sub">RESERVADOS</div><strong id="mReservados" style="font-size:25px">0</strong></div>
+      <div class="card"><div class="sub">PEDIDOS</div><strong id="mPedidos" style="font-size:25px">0</strong></div>
+      <div class="card"><div class="sub">EXPIRADOS</div><strong id="mExpirados" style="font-size:25px">0</strong></div>
+    </div>
+
+    <div class="grid" style="margin-top:14px;align-items:start">
+      <div class="card">
+        <h4 style="margin:0 0 12px">Estado de números</h4>
+        <div id="numbersBars"></div>
+      </div>
+      <div class="card">
+        <h4 style="margin:0 0 12px">Estado de pagos</h4>
+        <div id="paymentsBars"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="bar"><div><h4 style="margin:0">Ventas aprobadas recientes</h4><div class="sub">Actividad diaria registrada por fecha de pago.</div></div></div>
+      <div id="salesTrend"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h4 style="margin:0 0 12px">Rendimiento por rifa</h4>
+      <div id="rafflePerformance"></div>
+    </div>
+
+    <div id="dashboardText" class="sub" style="margin-top:14px"></div>
   </section>
 
   <section id="pagos" class="section"><div class="card"><div class="bar"><div><h3 style="margin:0">Pagos por revisar</h3><div class="sub">Los números se convierten en vendidos solamente al aprobar.</div></div><button class="btn ghost small" onclick="loadPayments()">Actualizar</button></div><div id="paymentsBox"></div></div></section>
@@ -228,31 +258,63 @@ let dashboardRequestId=0;
 async function loadDashboard(){
   const requestId=++dashboardRequestId;
   const sel=$('dashboardRaffleFilter');
-
   try{
     await ensureDashboardRaffleFilter();
     if(requestId!==dashboardRequestId) return;
-
-    const idRifa=sel ? sel.value : '';
+    const idRifa=sel?sel.value:'';
     if(sel) sel.disabled=true;
-    $('dashboardText').innerHTML='Actualizando resumen...';
+    $('dashboardText').textContent='Actualizando indicadores...';
 
     const r=await run('obtenerResumenAdmin',token,idRifa);
     if(requestId!==dashboardRequestId) return;
 
-    $('mRifas').textContent=r.rifasActivas;
+    $('mRecaudado').textContent=money(r.recaudado);
     $('mVendidos').textContent=r.vendidos;
     $('mPagos').textContent=r.pagosPendientes;
-    $('mRecaudado').textContent=money(r.recaudado);
+    $('mClientes').textContent=r.clientes;
+    $('mDisponibles').textContent=r.disponibles;
+    $('mReservados').textContent=r.reservados;
+    $('mPedidos').textContent=r.pedidos;
+    $('mExpirados').textContent=r.pedidosExpirados;
+    $('dAprobados').textContent=`${r.pagosAprobados} pagos aprobados`;
+    $('dAvance').textContent=`${r.porcentajeVendido}% de avance`;
+    $('dRevision').textContent=`${r.pagosEnRevision} en revisión`;
+    $('dTicket').textContent=`Ticket medio ${money(r.ticketPromedio)}`;
 
-    const alcance=idRifa
-      ? `<b>${esc(idRifa)} - ${esc(r.nombreRifa)}</b>`
-      : '<b>Todas las rifas</b>';
+    const bar=(label,value,total)=> {
+      const pct=total?Math.min(100,Math.round(value*1000/total)/10):0;
+      return `<div style="margin:10px 0"><div class="bar"><span>${esc(label)}</span><b>${value} · ${pct}%</b></div><div style="height:8px;background:#13263b;border-radius:999px;overflow:hidden;margin-top:5px"><div style="height:100%;width:${pct}%;background:#39bdf8"></div></div></div>`;
+    };
+    $('numbersBars').innerHTML=
+      bar('Vendidos',r.vendidos,r.numeros)+
+      bar('Reservados',r.reservados,r.numeros)+
+      bar('Disponibles',r.disponibles,r.numeros);
 
-    $('dashboardText').innerHTML=`Resumen: ${alcance}. Total de números: <b>${r.numeros}</b>; disponibles: <b>${r.disponibles}</b>; reservados: <b>${r.reservados}</b>; vendidos: <b>${r.vendidos}</b>; pedidos: <b>${r.pedidos}</b>.`;
+    const totalPagos=r.pagosAprobados+r.pagosEnRevision+r.pagosPendientesSinComprobante+r.pagosRechazados;
+    $('paymentsBars').innerHTML=
+      bar('Aprobados',r.pagosAprobados,totalPagos)+
+      bar('En revisión',r.pagosEnRevision,totalPagos)+
+      bar('Pendientes',r.pagosPendientesSinComprobante,totalPagos)+
+      bar('Rechazados',r.pagosRechazados,totalPagos);
+
+    if((r.ventasPorDia||[]).length){
+      const max=Math.max(...r.ventasPorDia.map(x=>Number(x.monto||0)),1);
+      $('salesTrend').innerHTML=`<div style="display:flex;align-items:flex-end;gap:8px;height:190px;overflow-x:auto;padding:18px 4px 0">${r.ventasPorDia.map(x=>{
+        const h=Math.max(8,Math.round(Number(x.monto||0)/max*135));
+        return `<div title="${esc(x.fecha)} · ${money(x.monto)} · ${x.ventas} venta(s)" style="min-width:54px;text-align:center"><div style="font-size:10px;margin-bottom:4px">${money(x.monto)}</div><div style="height:${h}px;background:#39bdf8;border-radius:6px 6px 2px 2px"></div><div class="sub" style="font-size:9px;margin-top:5px">${esc(x.fecha.slice(5))}</div></div>`;
+      }).join('')}</div>`;
+    }else{
+      $('salesTrend').innerHTML='<div class="notice">Todavía no hay ventas aprobadas con fecha de pago para graficar.</div>';
+    }
+
+    const rr=r.rendimientoRifas||[];
+    $('rafflePerformance').innerHTML=rr.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Rifa</th><th>Estado</th><th>Vendidos</th><th>Avance</th><th>Recaudado</th></tr></thead><tbody>${rr.map(x=>`<tr><td><b>${esc(x.idRifa)}</b><div class="sub">${esc(x.nombre)}</div></td><td>${status(x.estado)}</td><td>${x.vendidos} / ${x.totalNumeros}</td><td><b>${x.avance}%</b></td><td><b>${money(x.recaudado)}</b></td></tr>`).join('')}</tbody></table></div>`:'<div class="notice">Sin rifas para mostrar.</div>';
+
+    const alcance=idRifa?`${esc(idRifa)} - ${esc(r.nombreRifa)}`:'Todas las rifas';
+    $('dashboardText').innerHTML=`Vista actual: <b>${alcance}</b>. Los importes consideran pagos aprobados.`;
   }catch(e){
     if(requestId===dashboardRequestId){
-      $('dashboardText').innerHTML='No se pudo actualizar el resumen.';
+      $('dashboardText').textContent='No se pudo actualizar el dashboard.';
       toast(err(e));
     }
   }finally{
