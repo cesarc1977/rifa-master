@@ -366,6 +366,20 @@ async function viewOrder(idPedido){
           ${p.reservas.length ? p.reservas.map(r=>`<div>${status(r.estado)} <span class="sub">Reserva: ${esc(r.fechaReserva)} · Expira: ${esc(r.expira)}</span></div>`).join('') : '<div class="sub">Sin registro de reserva.</div>'}
         </div>
 
+        <div class="card" style="margin-top:12px">
+          <h4 style="margin:0 0 12px">Historial de la venta</h4>
+          ${(p.historial||[]).length ? (p.historial||[]).map((h,i)=>`
+            <div style="display:grid;grid-template-columns:18px 1fr;gap:10px;position:relative;padding-bottom:${i===(p.historial.length-1)?'0':'15px'}">
+              <div style="width:12px;height:12px;border-radius:50%;background:#39bdf8;margin-top:4px;box-shadow:0 0 0 4px rgba(57,189,248,.12)"></div>
+              <div>
+                <div style="font-weight:800">${esc(h.titulo)}</div>
+                <div class="sub">${esc(h.fecha||'Fecha no registrada')} · ${esc(h.tipo)}</div>
+                <div style="font-size:12px;margin-top:3px">${esc(h.detalle||'')}</div>
+              </div>
+            </div>
+          `).join('') : '<div class="sub">No hay eventos disponibles para este pedido.</div>'}
+        </div>
+
         <div class="actions" style="margin-top:16px">
           ${pago.comprobante?`<button class="btn ghost" onclick="viewProof('${esc(pago.idPago)}')">📎 Ver comprobante</button>`:''}
           ${String(pago.estado||'').toUpperCase()==='APROBADO'?`<button class="btn primary" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:''}
