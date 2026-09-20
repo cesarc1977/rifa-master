@@ -1483,11 +1483,51 @@ async function apiCall(action, ...args){
       try {
         const base64 = String(reader.result).split(',')[1] || '';
         apiCall('subirComprobante', idPedidoActual, file.name, file.type, base64).then(res => {
+            // El comprobante ya quedó asociado al pedido anterior y el pago
+            // permanece EN_REVISION en el servidor. Liberamos solamente la
+            // interfaz local para que el operador pueda iniciar otra venta.
+            mostrarAviso(
+              'Comprobante enviado correctamente. El pago quedó en revisión y ya puedes realizar una nueva venta.',
+              false
+            );
+
+            idPedidoActual = '';
+            numerosPedidoActual.clear();
+            numerosReservaEnCurso.clear();
+            seleccionados.clear();
+
+            const orderResult = document.getElementById('orderResult');
+            if(orderResult) orderResult.classList.remove('show');
+
+            const orderCode = document.getElementById('orderCode');
+            if(orderCode) orderCode.textContent = '—';
+
+            const orderMessage = document.getElementById('orderMessage');
+            if(orderMessage) orderMessage.textContent = '';
+
+            // Limpiar comprobante anterior.
+            input.value = '';
+            input.disabled = false;
             btn.disabled = false;
-            btn.textContent = 'Comprobante enviado';
-            document.getElementById('proofStatus').textContent = res.mensaje || 'Comprobante recibido.';
-            mostrarAviso('Comprobante enviado correctamente.', false);
-            input.disabled = true;
+            btn.textContent = 'Enviar comprobante';
+
+            const proofStatus = document.getElementById('proofStatus');
+            if(proofStatus) proofStatus.textContent = '';
+
+            const proofPanel = document.getElementById('proofPanel');
+            if(proofPanel) proofPanel.classList.remove('show');
+
+            // Limpiar datos del cliente anterior y preparar una venta nueva.
+            const form = document.getElementById('reservationForm');
+            if(form) form.reset();
+
+            metodoPagoUltimo = 'TRANSFERENCIA';
+            cambiarPago();
+            actualizarSeleccion();
+
+            // El número anterior seguirá reservado/en revisión porque aquí
+            // no modificamos el backend. Solo refrescamos la cuadrícula.
+            cargarNumeros();
           }).catch(err => {
             btn.disabled = false;
             btn.textContent = 'Enviar comprobante';
