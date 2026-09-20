@@ -103,9 +103,9 @@ async function apiCall(action, ...args){
     </div>
 
     <div class="grid" style="margin-top:14px">
-      <div class="metric"><div class="sub">RECAUDADO</div><strong id="mRecaudado">$0,00</strong><div class="sub" id="dAprobados">0 pagos aprobados</div></div>
-      <div class="metric"><div class="sub">NÚMEROS VENDIDOS</div><strong id="mVendidos">0</strong><div class="sub" id="dAvance">0% de avance</div></div>
-      <div class="metric"><div class="sub">PAGOS POR REVISAR</div><strong id="mPagos">0</strong><div class="sub" id="dRevision">0 en revisión</div></div>
+      <div class="metric"><div class="sub">RECAUDADO</div><strong id="dRecaudado">$0,00</strong><div class="sub" id="dAprobados">0 pagos aprobados</div></div>
+      <div class="metric"><div class="sub">NÚMEROS VENDIDOS</div><strong id="dVendidos">0</strong><div class="sub" id="dAvance">0% de avance</div></div>
+      <div class="metric"><div class="sub">PAGOS POR REVISAR</div><strong id="dPagos">0</strong><div class="sub" id="dRevision">0 en revisión</div></div>
       <div class="metric"><div class="sub">CLIENTES</div><strong id="mClientes">0</strong><div class="sub" id="dTicket">Ticket medio $0,00</div></div>
     </div>
 
@@ -268,9 +268,16 @@ async function loadDashboard(){
     const r=await run('obtenerResumenAdmin',token,idRifa);
     if(requestId!==dashboardRequestId) return;
 
+    // Resumen superior
+    $('mRifas').textContent=r.rifasActivas;
     $('mRecaudado').textContent=money(r.recaudado);
     $('mVendidos').textContent=r.vendidos;
     $('mPagos').textContent=r.pagosPendientes;
+
+    // KPIs centrales de la rifa seleccionada
+    $('dRecaudado').textContent=money(r.recaudado);
+    $('dVendidos').textContent=r.vendidos;
+    $('dPagos').textContent=r.pagosPendientes;
     $('mClientes').textContent=r.clientes;
     $('mDisponibles').textContent=r.disponibles;
     $('mReservados').textContent=r.reservados;
