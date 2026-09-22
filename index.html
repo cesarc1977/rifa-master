@@ -1,352 +1,1799 @@
-/**
- * ============================================================
- * RIFA MASTER - CLOUDFLARE WORKER
- * Versión estable / optimizada
- *
- * GitHub Pages -> Cloudflare Worker -> Google Apps Script
- * ============================================================
- */
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="Rifa Master - participa, reserva tus números y consulta tu pedido.">
+  <title>Rifa Master</title>
 
-const APPS_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbxyGEkWWbyHBxjdHrYWcxJURP_94YPjt4_HzjOOrOivcqcA6HX0sQzH8o5qrn_DttlV/exec';
-
-
-export default {
-
-  async fetch(request) {
-
-    // --------------------------------------------------------
-    // CORS
-    // --------------------------------------------------------
-
-    const cors = {
-
-      'Access-Control-Allow-Origin': '*',
-
-      'Access-Control-Allow-Methods':
-        'POST, OPTIONS',
-
-      'Access-Control-Allow-Headers':
-        'Content-Type',
-
-      'Cache-Control':
-        'no-store, no-cache, must-revalidate',
-
-      'Pragma':
-        'no-cache'
-    };
-
-
-    // --------------------------------------------------------
-    // PREFLIGHT CORS
-    // --------------------------------------------------------
-
-    if (request.method === 'OPTIONS') {
-
-      return new Response(
-        null,
-        {
-          status: 204,
-          headers: cors
-        }
-      );
+  <style>
+    :root{
+      --bg:#070b16;
+      --panel:#0f172a;
+      --panel-2:#111c33;
+      --line:rgba(255,255,255,.09);
+      --text:#f8fafc;
+      --muted:#94a3b8;
+      --primary:#22c55e;
+      --primary-2:#16a34a;
+      --blue:#38bdf8;
+      --yellow:#fbbf24;
+      --danger:#ef4444;
+      --available:#172554;
+      --reserved:#78350f;
+      --sold:#334155;
+      --shadow:0 20px 50px rgba(0,0,0,.28);
+      --radius:22px;
     }
 
+    *{box-sizing:border-box}
 
-    // --------------------------------------------------------
-    // SOLO PERMITIMOS POST
-    // --------------------------------------------------------
+    html{scroll-behavior:smooth}
 
-    if (request.method !== 'POST') {
-
-      return jsonResponse(
-        {
-          okApi: false,
-          error: 'Método no permitido'
-        },
-        405,
-        cors
-      );
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at 15% 0%,rgba(34,197,94,.16),transparent 32%),
+        radial-gradient(circle at 90% 10%,rgba(56,189,248,.13),transparent 28%),
+        var(--bg);
+      color:var(--text);
     }
 
+    button,input,select{font:inherit}
 
-    // --------------------------------------------------------
-    // LEER SOLICITUD DEL FRONTEND
-    // --------------------------------------------------------
+    button{cursor:pointer}
 
-    let body = '';
-
-    try {
-
-      body = await request.text();
-
-    } catch (error) {
-
-      return jsonResponse(
-        {
-          okApi: false,
-          error: 'No se pudo leer la solicitud.'
-        },
-        400,
-        cors
-      );
+    .app{
+      width:min(1500px,100%);
+      margin:auto;
+      padding:18px;
     }
 
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:15px;
+      margin-bottom:18px;
+    }
 
-    // --------------------------------------------------------
-    // COMUNICACIÓN CON APPS SCRIPT
-    //
-    // Se permiten hasta 3 intentos únicamente ante
-    // errores temporales.
-    // --------------------------------------------------------
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
 
-    let ultimoError = '';
+    .brand-logo{
+      width:46px;
+      height:46px;
+      border-radius:14px;
+      display:grid;
+      place-items:center;
+      font-weight:900;
+      font-size:20px;
+      background:linear-gradient(135deg,var(--primary),var(--blue));
+      color:#06100b;
+      box-shadow:0 10px 30px rgba(34,197,94,.2);
+    }
 
-    for (let intento = 1; intento <= 3; intento++) {
+    .brand strong{display:block;font-size:18px}
+    .brand span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 
-      try {
+    .share-btn{
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
+      color:white;
+      padding:10px 15px;
+      border-radius:12px;
+      font-weight:700;
+    }
 
-        const upstream = await fetch(
-          APPS_SCRIPT_URL,
-          {
-            method: 'POST',
+    .hero{
+      display:grid;
+      grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);
+      gap:18px;
+      margin-bottom:18px;
+    }
 
-            /*
-             * IMPORTANTE:
-             *
-             * Usamos text/plain para evitar un preflight
-             * innecesario hacia Apps Script.
-             *
-             * Apps Script igualmente recibe el JSON mediante
-             * e.postData.contents.
-             */
+    .hero-card,.panel{
+      border:1px solid var(--line);
+      background:linear-gradient(145deg,rgba(15,23,42,.96),rgba(10,16,30,.96));
+      box-shadow:var(--shadow);
+      border-radius:var(--radius);
+    }
 
-            headers: {
-              'Content-Type':
-                'text/plain;charset=utf-8'
-            },
+    .hero-card{
+      padding:30px;
+      position:relative;
+      overflow:hidden;
+    }
 
-            body: body,
+    .hero-card:after{
+      content:"";
+      position:absolute;
+      width:260px;
+      height:260px;
+      right:-90px;
+      top:-100px;
+      border-radius:50%;
+      background:rgba(34,197,94,.12);
+      filter:blur(10px);
+    }
 
-            redirect: 'follow'
-          }
-        );
+    .eyebrow{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:7px 11px;
+      border-radius:999px;
+      background:rgba(34,197,94,.11);
+      color:#86efac;
+      border:1px solid rgba(34,197,94,.2);
+      font-size:12px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+    }
 
+    .hero h1{
+      font-size:clamp(30px,4vw,54px);
+      line-height:1.03;
+      margin:17px 0 10px;
+      max-width:800px;
+    }
 
-        // ----------------------------------------------------
-        // LEER RESPUESTA COMPLETA
-        // ----------------------------------------------------
+    .hero h1 span{
+      background:linear-gradient(90deg,#fff,#86efac,#7dd3fc);
+      -webkit-background-clip:text;
+      background-clip:text;
+      color:transparent;
+    }
 
-        const text =
-          await upstream.text();
+    .description{
+      color:var(--muted);
+      line-height:1.6;
+      max-width:800px;
+      margin:0;
+    }
 
+    .prize{
+      margin-top:22px;
+      display:flex;
+      align-items:center;
+      gap:13px;
+    }
 
-        // ----------------------------------------------------
-        // DETECTAR SI GOOGLE DEVOLVIÓ HTML
-        // ----------------------------------------------------
+    .prize-icon{
+      width:52px;height:52px;
+      border-radius:15px;
+      display:grid;place-items:center;
+      background:rgba(251,191,36,.12);
+      border:1px solid rgba(251,191,36,.2);
+      font-size:26px;
+    }
 
-        const pareceHtml =
-          /^\s*</.test(text);
+    .prize small{display:block;color:var(--muted)}
+    .prize strong{display:block;font-size:20px;margin-top:3px}
 
+    .price-card{
+      padding:25px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      min-height:100%;
+    }
 
-        // ----------------------------------------------------
-        // RESPUESTA CORRECTA
-        // ----------------------------------------------------
+    .price-label{color:var(--muted);font-size:13px}
+    .price{
+      font-size:45px;
+      font-weight:900;
+      margin:4px 0;
+    }
 
-        if (
-          upstream.ok &&
-          !pareceHtml
-        ) {
+    .price-note{color:var(--muted);font-size:13px}
 
-          return new Response(
-            text,
-            {
-              status: 200,
+    .countdown{
+      margin-top:20px;
+      padding:15px;
+      border:1px solid var(--line);
+      border-radius:17px;
+      background:rgba(255,255,255,.035);
+    }
 
-              headers: {
-                ...cors,
+    .countdown-label{
+      color:var(--muted);
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
 
-                'Content-Type':
-                  'application/json; charset=utf-8'
-              }
-            }
-          );
+    #countdown{
+      font-size:24px;
+      font-weight:900;
+      margin-top:5px;
+    }
+
+    .stats{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:10px;
+      margin-top:18px;
+    }
+
+    .stat{
+      border:1px solid var(--line);
+      border-radius:15px;
+      padding:12px;
+      background:rgba(255,255,255,.025);
+    }
+
+    .stat b{font-size:20px;display:block}
+    .stat span{font-size:11px;color:var(--muted)}
+
+    .layout{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) 380px;
+      gap:18px;
+      align-items:start;
+    }
+
+    .panel{
+      padding:20px;
+    }
+
+    .panel-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:15px;
+      margin-bottom:17px;
+    }
+
+    .panel-title{
+      margin:0;
+      font-size:20px;
+    }
+
+    .panel-subtitle{
+      color:var(--muted);
+      font-size:12px;
+      margin:4px 0 0;
+    }
+
+    .search{
+      width:180px;
+      padding:11px 13px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:#09101f;
+      color:white;
+      outline:none;
+    }
+
+    .search:focus,input:focus,select:focus{
+      border-color:rgba(56,189,248,.7);
+      box-shadow:0 0 0 3px rgba(56,189,248,.08);
+    }
+
+    .legend{
+      display:flex;
+      flex-wrap:wrap;
+      gap:13px;
+      margin-bottom:16px;
+      color:var(--muted);
+      font-size:12px;
+    }
+
+    .legend-item{
+      display:flex;
+      align-items:center;
+      gap:7px;
+    }
+
+    .dot{
+      width:11px;height:11px;border-radius:4px;
+      display:inline-block;
+    }
+
+    .dot.available{background:#1d4ed8}
+    .dot.selected{background:var(--primary)}
+    .dot.reserved{background:#b45309}
+    .dot.sold{background:#475569}
+
+    .numbers{
+      display:grid;
+      grid-template-columns:repeat(10,minmax(38px,1fr));
+      gap:7px;
+      max-height:660px;
+      overflow:auto;
+      padding-right:3px;
+    }
+
+    .number{
+      min-height:40px;
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:10px;
+      background:var(--available);
+      color:#dbeafe;
+      font-size:12px;
+      font-weight:800;
+      transition:.15s ease;
+    }
+
+    .number:hover:not(:disabled){
+      transform:translateY(-1px);
+      border-color:rgba(255,255,255,.25);
+    }
+
+    .number.selected{
+      background:var(--primary);
+      border-color:#86efac;
+      color:#052e16;
+      box-shadow:0 7px 18px rgba(34,197,94,.22);
+    }
+
+    .number.reserved{
+      background:var(--reserved);
+      color:#fde68a;
+      cursor:not-allowed;
+    }
+
+    .number.sold{
+      background:var(--sold);
+      color:#cbd5e1;
+      cursor:not-allowed;
+      opacity:.7;
+    }
+
+    .selection-bar{
+      position:sticky;
+      bottom:10px;
+      margin-top:17px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:15px;
+      padding:15px;
+      border:1px solid rgba(34,197,94,.25);
+      border-radius:17px;
+      background:rgba(6,15,26,.95);
+      backdrop-filter:blur(15px);
+    }
+
+    .selection-bar small{color:var(--muted)}
+    .selection-total{font-size:20px;font-weight:900}
+
+    .primary-btn{
+      border:0;
+      color:#04130a;
+      background:linear-gradient(135deg,#4ade80,#22c55e);
+      padding:12px 17px;
+      border-radius:12px;
+      font-weight:900;
+      box-shadow:0 10px 24px rgba(34,197,94,.18);
+    }
+
+    .primary-btn:disabled{
+      opacity:.45;
+      cursor:not-allowed;
+      box-shadow:none;
+    }
+
+    .form-panel{
+      position:sticky;
+      top:15px;
+    }
+
+    .selected-box{
+      padding:14px;
+      background:rgba(56,189,248,.07);
+      border:1px solid rgba(56,189,248,.16);
+      border-radius:15px;
+      margin-bottom:15px;
+    }
+
+    .selected-box small{color:var(--muted)}
+    .selected-list{
+      margin-top:8px;
+      font-size:13px;
+      line-height:1.6;
+      max-height:70px;
+      overflow:auto;
+      color:#dbeafe;
+    }
+
+    .form{
+      display:grid;
+      gap:11px;
+    }
+
+    label{
+      color:#cbd5e1;
+      font-size:12px;
+      font-weight:700;
+    }
+
+    input,select{
+      width:100%;
+      margin-top:5px;
+      border:1px solid var(--line);
+      background:#09101f;
+      color:white;
+      padding:12px;
+      border-radius:11px;
+      outline:none;
+    }
+
+    .form-row{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .payment-title{
+      margin:5px 0 0;
+      font-size:13px;
+      font-weight:800;
+    }
+
+    .payment-options{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+
+    .payment-option{
+      border:1px solid var(--line);
+      background:#09101f;
+      border-radius:12px;
+      padding:11px;
+      color:#cbd5e1;
+      text-align:center;
+      cursor:pointer;
+    }
+
+    .payment-option.active{
+      border-color:rgba(34,197,94,.55);
+      background:rgba(34,197,94,.1);
+      color:#bbf7d0;
+    }
+
+    .payment-option input{display:none}
+
+    .bank-info{
+      display:none;
+      padding:12px;
+      border-radius:12px;
+      background:rgba(251,191,36,.07);
+      border:1px solid rgba(251,191,36,.14);
+      color:#fde68a;
+      font-size:12px;
+      line-height:1.55;
+    }
+
+    .bank-info.show{display:block}
+
+    .notice{
+      display:none;
+      padding:12px;
+      border-radius:12px;
+      font-size:12px;
+      line-height:1.5;
+    }
+
+    .notice.show{display:block}
+    .notice.error{
+      color:#fecaca;
+      background:rgba(239,68,68,.1);
+      border:1px solid rgba(239,68,68,.22);
+    }
+
+    .notice.success{
+      color:#bbf7d0;
+      background:rgba(34,197,94,.1);
+      border:1px solid rgba(34,197,94,.22);
+    }
+
+    .order-result{
+      display:none;
+      margin-top:15px;
+      padding:18px;
+      border-radius:17px;
+      background:linear-gradient(145deg,rgba(34,197,94,.12),rgba(56,189,248,.08));
+      border:1px solid rgba(34,197,94,.22);
+    }
+
+    .order-result.show{display:block}
+
+    .order-code{
+      font-size:25px;
+      font-weight:900;
+      letter-spacing:.04em;
+      margin:5px 0;
+    }
+
+    .copy-btn{
+      margin-top:8px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      color:white;
+      padding:8px 11px;
+      border-radius:9px;
+      font-size:12px;
+    }
+
+    .loading{
+      min-height:260px;
+      display:grid;
+      place-items:center;
+      color:var(--muted);
+    }
+
+    .spinner{
+      width:30px;height:30px;
+      border:3px solid rgba(255,255,255,.12);
+      border-top-color:var(--primary);
+      border-radius:50%;
+      animation:spin .8s linear infinite;
+      margin:auto;
+    }
+
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .footer{
+      color:var(--muted);
+      text-align:center;
+      font-size:11px;
+      padding:25px 5px 8px;
+    }
+
+    .empty{
+      padding:50px 20px;
+      text-align:center;
+      color:var(--muted);
+    }
+
+    .product-image-card{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:210px;background:linear-gradient(145deg,rgba(15,23,42,.98),rgba(7,18,31,.98));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .product-image-card img{width:100%;height:100%;max-height:300px;object-fit:contain;padding:14px;display:block}
+  .product-image-empty{color:var(--muted);font-size:12px;text-align:center;padding:30px}
+  .product-image-badge{position:absolute;top:12px;right:12px;padding:6px 9px;border-radius:999px;background:rgba(7,17,31,.78);border:1px solid rgba(125,211,252,.18);color:#bae6fd;font-size:10px;font-weight:800;backdrop-filter:blur(8px)}
+
+  @media(max-width:1050px){
+      .layout{grid-template-columns:1fr}
+      .form-panel{position:static}
+    }
+
+    .product-image-card{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:210px;background:linear-gradient(145deg,rgba(15,23,42,.98),rgba(7,18,31,.98));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .product-image-card img{width:100%;height:100%;max-height:300px;object-fit:contain;padding:14px;display:block}
+  .product-image-empty{color:var(--muted);font-size:12px;text-align:center;padding:30px}
+  .product-image-badge{position:absolute;top:12px;right:12px;padding:6px 9px;border-radius:999px;background:rgba(7,17,31,.78);border:1px solid rgba(125,211,252,.18);color:#bae6fd;font-size:10px;font-weight:800;backdrop-filter:blur(8px)}
+
+  @media(max-width:750px){
+      .app{padding:10px}
+      .hero{grid-template-columns:1fr}
+      .hero-card{padding:22px}
+      .price-card{min-height:220px}
+      .numbers{
+        grid-template-columns:repeat(5,minmax(43px,1fr));
+        max-height:520px;
+      }
+      .stats{grid-template-columns:repeat(2,1fr)}
+      .panel{padding:14px}
+      .panel-header{align-items:flex-start;flex-direction:column}
+      .search{width:100%}
+      .selection-bar{
+        align-items:stretch;
+        flex-direction:column;
+      }
+      .primary-btn{width:100%}
+    }
+
+    .product-image-card{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:210px;background:linear-gradient(145deg,rgba(15,23,42,.98),rgba(7,18,31,.98));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .product-image-card img{width:100%;height:100%;max-height:300px;object-fit:contain;padding:14px;display:block}
+  .product-image-empty{color:var(--muted);font-size:12px;text-align:center;padding:30px}
+  .product-image-badge{position:absolute;top:12px;right:12px;padding:6px 9px;border-radius:999px;background:rgba(7,17,31,.78);border:1px solid rgba(125,211,252,.18);color:#bae6fd;font-size:10px;font-weight:800;backdrop-filter:blur(8px)}
+
+  @media(max-width:430px){
+      .numbers{grid-template-columns:repeat(4,minmax(48px,1fr))}
+      .form-row{grid-template-columns:1fr}
+      .payment-options{grid-template-columns:1fr}
+      .topbar{align-items:flex-start}
+      .share-btn{padding:9px 11px;font-size:12px}
+    }
+  
+    .bank-list{display:grid;gap:10px;margin-top:9px}
+    .bank-card{padding:11px 12px;border:1px solid rgba(251,191,36,.16);border-radius:12px;background:rgba(255,255,255,.025)}
+    .bank-card strong{display:block;color:#fde68a;margin-bottom:4px}
+    .bank-card div{color:#fde68a;line-height:1.55}
+    .bank-account-note{margin-top:8px;color:#94a3b8;font-size:11px}
+
+    .proof-panel{display:none;margin-top:14px;padding:16px;border:1px solid var(--line);border-radius:16px;background:rgba(15,23,42,.7)}
+    .proof-panel.show{display:block}
+    .proof-panel input[type=file]{width:100%;padding:10px;border:1px dashed #475569;border-radius:10px;background:#0b1220;color:#cbd5e1}
+    .proof-status{margin-top:10px;font-size:12px;color:#94a3b8;line-height:1.5}
+    .proof-btn{margin-top:10px;width:100%;padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}
+    .proof-btn:disabled{opacity:.55;cursor:not-allowed}
+
+</style>
+<script>
+/* RIFA MASTER - cliente API externo */
+const RIFA_API_URL = 'https://rifa-master-api.cesarcarval77.workers.dev';
+async function apiCall(action, ...args){
+  if(RIFA_API_URL.includes('PEGA_AQUI')) throw new Error('Falta configurar RIFA_API_URL en el frontend.');
+  let ultimoError=null;
+  for(let intento=1;intento<=3;intento++){
+    try{
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),18000);
+      const response=await fetch(RIFA_API_URL,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action,args}),
+        cache:'no-store',
+        signal:controller.signal
+      });
+      clearTimeout(timer);
+      const texto=await response.text();
+      const tipo=String(response.headers.get('content-type')||'').toLowerCase();
+      if(!response.ok){
+        const e=new Error(`API HTTP ${response.status}.`);
+        e.httpStatus=response.status;
+        throw e;
+      }
+      let payload;
+      try{payload=JSON.parse(texto)}
+      catch(e){
+        if(/^\s*</.test(texto)||tipo.includes('text/html')) throw new Error('El servidor respondió temporalmente con HTML en lugar de JSON.');
+        throw new Error('La API devolvió una respuesta no válida.');
+      }
+      if(!payload.okApi) throw new Error(payload.error||'Error del servidor');
+      return payload.data;
+    }catch(e){
+      ultimoError=e;
+      const status=Number(e.httpStatus||0);
+      const reintentar=!status || status===408 || status===429 || status>=500;
+      if(intento<3 && reintentar){
+        await new Promise(r=>setTimeout(r,500*intento));
+        continue;
+      }
+      break;
+    }
+  }
+  throw ultimoError||new Error('No se pudo comunicar con el servidor.');
+}
+</script>
+</head>
+
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">RM</div>
+      <div>
+        <strong>Rifa Master</strong>
+        <span>Participa de forma rápida y segura</span>
+      </div>
+    </div>
+
+    <button class="share-btn" onclick="compartirRifa()">
+      ↗ Compartir
+    </button>
+  </header>
+
+  <section class="hero">
+    <div class="hero-card hero">
+      <div>
+        <span class="eyebrow">🎟️ Rifa activa</span>
+        <h1 id="rifaNombre">Cargando <span>rifa...</span></h1>
+        <p class="description" id="rifaDescripcion">
+          Estamos cargando la información de la rifa.
+        </p>
+
+        <div class="prize">
+          <div class="prize-icon">🏆</div>
+          <div>
+            <small>Premio</small>
+            <strong id="rifaPremio">—</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="price-card hero-card">
+      <div id="productImageBox" class="product-image-card" style="margin:-8px -8px 18px;min-height:180px">
+        <div class="product-image-empty">Imagen del producto</div>
+      </div>
+      <div>
+        <div class="price-label">Precio por número</div>
+        <div class="price" id="rifaPrecio">$0</div>
+        <div class="price-note" id="cantidadNumeros">0 números</div>
+      </div>
+
+      <div class="countdown">
+        <div class="countdown-label">Sorteo</div>
+        <div id="countdown">—</div>
+        <div class="price-note" id="fechaSorteo">—</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="stats" style="margin-bottom:18px">
+    <div class="stat"><b id="statTotal">0</b><span>Total</span></div>
+    <div class="stat"><b id="statDisponible">0</b><span>Disponibles</span></div>
+    <div class="stat"><b id="statReservado">0</b><span>Reservados</span></div>
+    <div class="stat"><b id="statVendido">0</b><span>Vendidos</span></div>
+  </section>
+
+  <main class="layout">
+
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Elige tus números</h2>
+          <p class="panel-subtitle">
+            Selecciona uno o varios números disponibles.
+          </p>
+        </div>
+        <input
+          id="searchNumber"
+          class="search"
+          type="number"
+          min="1"
+          placeholder="Buscar número..."
+          oninput="filtrarNumeros()"
+        >
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><i class="dot available"></i> Disponible</div>
+        <div class="legend-item"><i class="dot selected"></i> Seleccionado</div>
+        <div class="legend-item"><i class="dot reserved"></i> Reservado</div>
+        <div class="legend-item"><i class="dot sold"></i> Vendido</div>
+      </div>
+
+      <div id="numbers" class="numbers">
+        <div class="loading">
+          <div>
+            <div class="spinner"></div>
+            <div style="margin-top:10px">Cargando números...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="selection-bar">
+        <div>
+          <small id="selectedCount">0 números seleccionados</small>
+          <div class="selection-total" id="selectedTotal">$0.00</div>
+        </div>
+        <button
+          id="continueBtn"
+          class="primary-btn"
+          disabled
+          onclick="mostrarFormulario()"
+        >
+          Continuar
+        </button>
+      </div>
+    </section>
+
+    <aside class="panel form-panel" id="formPanel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Completa tu reserva</h2>
+          <p class="panel-subtitle">Tus datos se utilizarán para registrar el pedido.</p>
+        </div>
+      </div>
+
+      <div class="selected-box">
+        <small>Números seleccionados</small>
+        <div class="selected-list" id="selectedList">
+          Aún no has seleccionado números.
+        </div>
+      </div>
+
+      <form class="form" id="reservationForm" onsubmit="enviarReserva(event)">
+
+        <div class="form-row">
+          <label>
+            Nombre
+            <input id="nombre" required maxlength="60" autocomplete="given-name">
+          </label>
+
+          <label>
+            Apellido
+            <input id="apellido" required maxlength="60" autocomplete="family-name">
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>
+            Cédula
+            <input id="cedula" maxlength="20" autocomplete="off">
+          </label>
+
+          <label>
+            Teléfono / WhatsApp
+            <input id="telefono" required maxlength="25" autocomplete="tel">
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>
+            Correo
+            <input id="email" type="email" maxlength="100" autocomplete="email">
+          </label>
+
+          <label>
+            Ciudad
+            <input id="ciudad" maxlength="60" autocomplete="address-level2">
+          </label>
+        </div>
+
+        <div class="payment-title">Método de pago</div>
+
+        <div class="payment-options">
+          <label class="payment-option active" id="transferOption">
+            <input type="radio" name="metodoPago" value="TRANSFERENCIA" checked onchange="cambiarPago()">
+            🏦 Transferencia
+          </label>
+
+          <label class="payment-option" id="cashOption">
+            <input type="radio" name="metodoPago" value="EFECTIVO" onchange="cambiarPago()">
+            💵 Efectivo
+          </label>
+        </div>
+
+        <div class="bank-info show" id="bankInfo">
+          <strong>Datos para transferencia</strong>
+          <div id="bankDetails" style="margin-top:5px">
+            Cargando datos de cuenta...
+          </div>
+          <div style="margin-top:7px">
+            Después de reservar podrás enviar tu comprobante.
+          </div>
+        </div>
+
+        <div id="notice" class="notice"></div>
+
+        <button
+          id="reserveBtn"
+          class="primary-btn"
+          type="submit"
+          disabled
+        >
+          Reservar números
+        </button>
+
+      </form>
+
+      <div id="orderResult" class="order-result">
+        <div style="color:#86efac;font-size:12px;font-weight:800">
+          ✓ RESERVA GENERADA
+        </div>
+        <div style="margin-top:8px;color:#cbd5e1;font-size:12px">
+          Código de pedido
+        </div>
+        <div class="order-code" id="orderCode">—</div>
+        <div id="orderMessage" style="color:#cbd5e1;font-size:12px;line-height:1.5"></div>
+        <button class="copy-btn" onclick="copiarCodigo()">Copiar código</button>
+      </div>
+
+      <div id="proofPanel" class="proof-panel">
+        <div style="font-weight:800;color:#e2e8f0">Enviar comprobante de transferencia</div>
+        <div style="margin-top:5px;font-size:12px;color:#94a3b8">PDF, JPG, PNG o WEBP · máximo 5 MB</div>
+        <input id="proofFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" style="margin-top:10px">
+        <button id="proofBtn" class="proof-btn" type="button" onclick="enviarComprobante()">Enviar comprobante</button>
+        <div id="proofStatus" class="proof-status"></div>
+      </div>
+    </aside>
+
+  </main>
+
+  <footer class="footer">
+    Rifa Master · Sistema de gestión de rifas
+  </footer>
+</div>
+
+<script>
+  /*
+   * =========================================================
+   * FRONTEND RIFA MASTER
+   * Compatible con el Código.gs entregado anteriormente.
+   * =========================================================
+   */
+
+  // Frontend externo (GitHub Pages): leer la rifa desde ?rifa=R001
+  const codigoRifa = (new URLSearchParams(window.location.search).get('rifa') || '').trim().toUpperCase();
+
+  let rifa = null;
+  let numeros = [];
+  let seleccionados = new Set();
+  let idPedidoActual = '';
+  let numerosPedidoActual = new Set();
+  let numerosReservaEnCurso = new Set();
+  let countdownTimer = null;
+  let metodoPagoUltimo = 'TRANSFERENCIA';
+
+  // Actualización automática de disponibilidad.
+  const INTERVALO_ACTUALIZACION_NUMEROS = 20000;
+  let autoRefreshTimer = null;
+  let actualizandoNumeros = false;
+
+  document.addEventListener('DOMContentLoaded', iniciar);
+
+  function iniciar(){
+    if(!codigoRifa){
+      mostrarError('No se indicó el código de la rifa. Usa ?rifa=R001 en la URL.');
+      return;
+    }
+
+    cargarRifa();
+    iniciarActualizacionAutomaticaNumeros();
+  }
+
+  function iniciarActualizacionAutomaticaNumeros(){
+    detenerActualizacionAutomaticaNumeros();
+
+    autoRefreshTimer = setInterval(() => {
+      if(!document.hidden){
+        actualizarNumerosAutomaticamente();
+      }
+    }, INTERVALO_ACTUALIZACION_NUMEROS);
+
+    document.addEventListener('visibilitychange', () => {
+      if(!document.hidden){
+        actualizarNumerosAutomaticamente();
+      }
+    });
+  }
+
+  function detenerActualizacionAutomaticaNumeros(){
+    if(autoRefreshTimer){
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+  }
+
+  async function actualizarNumerosAutomaticamente(){
+    if(actualizandoNumeros || !codigoRifa || document.hidden) return;
+
+    actualizandoNumeros = true;
+    try{
+      const respuesta = await apiCall('obtenerNumeros', codigoRifa);
+      const nuevos = respuesta && respuesta.numeros ? respuesta.numeros : [];
+
+      // Si otro usuario reservó/vendió un número que este visitante tenía
+      // seleccionado, lo quitamos de su selección antes de volver a dibujar.
+      const mapa = new Map(nuevos.map(n => [Number(n.numero), String(n.estado || '')]));
+      const retirados = [];
+
+      Array.from(seleccionados).forEach(numero => {
+        if(mapa.get(Number(numero)) !== 'DISPONIBLE'){
+          seleccionados.delete(numero);
+          retirados.push(numero);
         }
+      });
 
+      numeros = nuevos;
+      renderNumeros();
+      actualizarEstadisticasDesdeNumeros();
 
-        // ----------------------------------------------------
-        // GUARDAR ERROR
-        // ----------------------------------------------------
+      // Si existe un pedido activo en esta misma página y todos sus números
+      // ya aparecen como VENDIDO, significa que el administrador aprobó el pago.
+      // Cerramos el ciclo anterior para que el cliente pueda hacer una nueva
+      // reserva sin que quede anclado el comprobante anterior.
+      if(idPedidoActual && numerosPedidoActual.size > 0){
+        const estadosPedido = [...numerosPedidoActual].map(numero => mapa.get(Number(numero)));
+        const pedidoAprobado = estadosPedido.length > 0 &&
+          estadosPedido.every(estado => estado === 'VENDIDO');
 
-        ultimoError =
-          `Apps Script HTTP ${upstream.status}`;
-
-
-        // ----------------------------------------------------
-        // ERRORES TEMPORALES
-        //
-        // 408 = timeout
-        // 429 = demasiadas solicitudes
-        // 5xx = error temporal servidor
-        // ----------------------------------------------------
-
-        const errorTemporal =
-
-          upstream.status === 408 ||
-
-          upstream.status === 429 ||
-
-          upstream.status >= 500;
-
-
-        if (
-          errorTemporal &&
-          intento < 3
-        ) {
-
-          await esperar(
-            400 * intento
-          );
-
-          continue;
-        }
-
-
-        // ----------------------------------------------------
-        // ERROR 404
-        // ----------------------------------------------------
-
-        if (upstream.status === 404) {
-
-          return jsonResponse(
-            {
-              okApi: false,
-
-              error:
-                'La implementación de Apps Script no está disponible (404). ' +
-                'Verifica que el Worker apunte a la URL /exec de la implementación activa.'
-            },
-            502,
-            cors
-          );
-        }
-
-
-        // ----------------------------------------------------
-        // GOOGLE DEVOLVIÓ HTML
-        // ----------------------------------------------------
-
-        if (pareceHtml) {
-
-          return jsonResponse(
-            {
-              okApi: false,
-
-              error:
-                'Apps Script respondió con HTML en lugar de JSON. ' +
-                'Verifica la implementación Web App y sus permisos.'
-            },
-            502,
-            cors
-          );
-        }
-
-
-        // ----------------------------------------------------
-        // OTRO ERROR
-        // ----------------------------------------------------
-
-        return jsonResponse(
-          {
-            okApi: false,
-            error: ultimoError
-          },
-          502,
-          cors
-        );
-
-
-      } catch (error) {
-
-
-        ultimoError =
-          String(
-            error &&
-            error.message
-              ? error.message
-              : error
-          );
-
-
-        // ----------------------------------------------------
-        // REINTENTAR ERROR DE RED
-        // ----------------------------------------------------
-
-        if (intento < 3) {
-
-          await esperar(
-            400 * intento
-          );
-
-          continue;
+        if(pedidoAprobado){
+          limpiarPedidoAprobado();
         }
       }
+
+      if(retirados.length){
+        mostrarAviso(
+          'Uno o más números seleccionados dejaron de estar disponibles: ' +
+          retirados.map(n => String(n).padStart(String(rifa.cantidadNumeros).length,'0')).join(', '),
+          true
+        );
+      }
+    }catch(error){
+      // Una actualización automática fallida no debe reemplazar la rifa
+      // por una pantalla de error. Se intentará nuevamente en el siguiente ciclo.
+      console.warn('Actualización automática pendiente:', obtenerMensajeError(error));
+    }finally{
+      actualizandoNumeros = false;
+    }
+  }
+
+  function limpiarPedidoAprobado(){
+    // Liberar el pedido anterior del estado local del navegador.
+    idPedidoActual = '';
+    numerosPedidoActual.clear();
+    numerosReservaEnCurso.clear();
+
+    // Ocultar la reserva anterior.
+    const orderResult = document.getElementById('orderResult');
+    if(orderResult){
+      orderResult.classList.remove('show');
     }
 
+    const orderCode = document.getElementById('orderCode');
+    if(orderCode) orderCode.textContent = '—';
 
-    // --------------------------------------------------------
-    // TODOS LOS INTENTOS FALLARON
-    // --------------------------------------------------------
+    const orderMessage = document.getElementById('orderMessage');
+    if(orderMessage) orderMessage.textContent = '';
 
-    return jsonResponse(
-      {
-        okApi: false,
+    // Limpiar y ocultar el comprobante anterior.
+    const proofPanel = document.getElementById('proofPanel');
+    if(proofPanel){
+      proofPanel.classList.remove('show');
+    }
 
-        error:
-          'No se pudo conectar con Apps Script: ' +
-          ultimoError
-      },
-      502,
-      cors
+    const proofFile = document.getElementById('proofFile');
+    if(proofFile){
+      proofFile.value = '';
+      proofFile.disabled = false;
+    }
+
+    const proofBtn = document.getElementById('proofBtn');
+    if(proofBtn){
+      proofBtn.disabled = false;
+      proofBtn.textContent = 'Enviar comprobante';
+    }
+
+    const proofStatus = document.getElementById('proofStatus');
+    if(proofStatus){
+      proofStatus.textContent = '';
+    }
+
+    // El formulario queda preparado para una nueva compra.
+    const form = document.getElementById('reservationForm');
+    if(form){
+      form.reset();
+    }
+
+    metodoPagoUltimo = 'TRANSFERENCIA';
+    cambiarPago();
+    actualizarSeleccion();
+
+    mostrarAviso(
+      '✓ Pago aprobado. Tu compra anterior fue confirmada. Ya puedes seleccionar números para una nueva reserva.',
+      false
     );
   }
-};
 
+  function actualizarEstadisticasDesdeNumeros(){
+    const stats = {
+      total: numeros.length,
+      disponibles: numeros.filter(n => String(n.estado) === 'DISPONIBLE').length,
+      reservados: numeros.filter(n => ['RESERVADO','PAGO_PENDIENTE','PAGO_EN_REVISION'].includes(String(n.estado))).length,
+      vendidos: numeros.filter(n => String(n.estado) === 'VENDIDO').length
+    };
+    actualizarEstadisticas(stats);
+  }
 
-// ============================================================
-// RESPUESTA JSON
-// ============================================================
+  function cargarRifa(){
+    apiCall('obtenerRifaPublicaCompleta', codigoRifa)
+      .then(respuesta => {
+        cargarRifaExitosa(respuesta, true);
+      })
+      .catch(error => mostrarError(error));
+  }
 
-function jsonResponse(
-  data,
-  status,
-  headers
-) {
-
-  return new Response(
-    JSON.stringify(data),
-    {
-      status: status,
-
-      headers: {
-        ...headers,
-
-        'Content-Type':
-          'application/json; charset=utf-8'
-      }
+  function cargarRifaExitosa(respuesta, cargaCompleta){
+    if(!respuesta || !respuesta.ok){
+      mostrarError('No fue posible cargar la rifa.');
+      return;
     }
-  );
-}
 
+    rifa = respuesta.rifa;
 
-// ============================================================
-// ESPERA PARA REINTENTOS
-// ============================================================
+    document.title =
+      `${rifa.nombre} | Rifa Master`;
 
-function esperar(ms) {
+    document.getElementById('rifaNombre').innerHTML =
+      escapeHtml(rifa.nombre);
 
-  return new Promise(
-    resolve =>
-      setTimeout(resolve, ms)
-  );
-}
+    document.getElementById('rifaDescripcion').textContent =
+      rifa.descripcion || 'Participa y selecciona tus números.';
+
+    document.getElementById('rifaPremio').textContent =
+      rifa.premio || 'Premio de la rifa';
+
+    document.getElementById('rifaPrecio').textContent =
+      moneda(rifa.precio);
+
+    document.getElementById('cantidadNumeros').textContent =
+      `${rifa.cantidadNumeros.toLocaleString('es-EC')} números`;
+
+    document.getElementById('fechaSorteo').textContent =
+      `${rifa.fechaSorteo || ''} ${rifa.horaSorteo || ''}`;
+
+    const config = respuesta.configuracionPago || {};
+
+    // La imagen viene asociada a la rifa cargada.
+    // El backend solo usa la imagen global para rifas antiguas sin imagen propia.
+    const imageUrl = String(rifa.imagenProducto || '').trim();
+    const imageBox = document.getElementById('productImageBox');
+    if(imageBox){
+      imageBox.innerHTML = imageUrl
+        ? `<span class="product-image-badge">PREMIO</span><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(rifa.premio || 'Producto de la rifa')}" loading="eager">`
+        : '<div class="product-image-empty">El administrador aún no ha configurado la imagen del producto.</div>';
+    }
+    const cuentas = Array.isArray(config.cuentas)
+      ? config.cuentas
+      : [];
+
+    // Compatibilidad con versiones anteriores que devolvían una sola cuenta.
+    const cuentasMostrar = cuentas.length
+      ? cuentas
+      : (config.banco || config.numeroCuenta || config.titularCuenta)
+        ? [{
+            alias: 'Cuenta principal',
+            banco: config.banco || '',
+            tipoCuenta: config.tipoCuenta || '',
+            numeroCuenta: config.numeroCuenta || '',
+            titularCuenta: config.titularCuenta || '',
+            identificacionTitular: ''
+          }]
+        : [];
+
+    const bankHtml = cuentasMostrar.map((cuenta, index) => {
+      let detalle = '';
+      if(cuenta.banco) detalle += `<b>Banco:</b> ${escapeHtml(cuenta.banco)}<br>`;
+      if(cuenta.tipoCuenta) detalle += `<b>Tipo:</b> ${escapeHtml(cuenta.tipoCuenta)}<br>`;
+      if(cuenta.numeroCuenta) detalle += `<b>Número:</b> ${escapeHtml(cuenta.numeroCuenta)}<br>`;
+      if(cuenta.titularCuenta) detalle += `<b>Titular:</b> ${escapeHtml(cuenta.titularCuenta)}<br>`;
+      if(cuenta.identificacionTitular) detalle += `<b>Identificación:</b> ${escapeHtml(cuenta.identificacionTitular)}`;
+      return `<div class="bank-card">
+        <strong>🏦 ${escapeHtml(cuenta.alias || ('Cuenta ' + (index + 1)))}</strong>
+        <div>${detalle || 'Datos bancarios no configurados.'}</div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('bankDetails').innerHTML = bankHtml
+      ? `<div class="bank-list">${bankHtml}</div><div class="bank-account-note">Puedes transferir a cualquiera de estas cuentas.</div>`
+      : 'Los datos bancarios serán configurados por el administrador.';
+
+    actualizarEstadisticas(respuesta.estadisticas);
+    iniciarCuentaRegresiva(rifa);
+
+    if(cargaCompleta && Array.isArray(respuesta.numeros)){
+      numeros = respuesta.numeros;
+      renderNumeros();
+      actualizarEstadisticasDesdeNumeros();
+    }else{
+      cargarNumeros();
+    }
+  }
+
+  function cargarNumeros(){
+    apiCall('obtenerNumeros', codigoRifa).then(respuesta => {
+        numeros = respuesta.numeros || [];
+        renderNumeros();
+        actualizarEstadisticasDesdeNumeros();
+      }).catch(error => mostrarError(error));
+  }
+
+  function renderNumeros(){
+    const contenedor =
+      document.getElementById('numbers');
+
+    const filtro =
+      Number(document.getElementById('searchNumber').value || 0);
+
+    const visibles =
+      filtro > 0
+        ? numeros.filter(n => n.numero === filtro)
+        : numeros;
+
+    if(visibles.length === 0){
+      contenedor.innerHTML =
+        `<div class="empty" style="grid-column:1/-1">
+          No se encontró ese número.
+        </div>`;
+      return;
+    }
+
+    contenedor.innerHTML = '';
+
+    const fragment =
+      document.createDocumentFragment();
+
+    visibles.forEach(item => {
+      const btn =
+        document.createElement('button');
+
+      btn.className =
+        'number ' +
+        claseEstado(item.estado, item.numero);
+
+      btn.textContent =
+        String(item.numero).padStart(
+          String(rifa.cantidadNumeros).length,
+          '0'
+        );
+
+      btn.dataset.numero = item.numero;
+
+      if(
+        item.estado !== 'DISPONIBLE' &&
+        !seleccionados.has(item.numero)
+      ){
+        btn.disabled = true;
+      }
+
+      btn.onclick = () =>
+        seleccionarNumero(item);
+
+      fragment.appendChild(btn);
+    });
+
+    contenedor.appendChild(fragment);
+
+    actualizarSeleccion();
+  }
+
+  function claseEstado(estado, numero){
+    if(seleccionados.has(numero)){
+      return 'selected';
+    }
+
+    if(estado === 'RESERVADO'){
+      return 'reserved';
+    }
+
+    if(estado === 'VENDIDO'){
+      return 'sold';
+    }
+
+    return 'available';
+  }
+
+  function seleccionarNumero(item){
+    if(item.estado !== 'DISPONIBLE'){
+      return;
+    }
+
+    if(seleccionados.has(item.numero)){
+      seleccionados.delete(item.numero);
+    }else{
+      seleccionados.add(item.numero);
+    }
+
+    renderNumeros();
+    actualizarSeleccion();
+  }
+
+  function actualizarSeleccion(){
+    const lista =
+      [...seleccionados].sort((a,b)=>a-b);
+
+    const cantidad =
+      lista.length;
+
+    const total =
+      cantidad * Number(rifa?.precio || 0);
+
+    document.getElementById('selectedCount').textContent =
+      `${cantidad} número${cantidad === 1 ? '' : 's'} seleccionado${cantidad === 1 ? '' : 's'}`;
+
+    document.getElementById('selectedTotal').textContent =
+      moneda(total);
+
+    document.getElementById('selectedList').textContent =
+      cantidad
+        ? lista.join(', ')
+        : 'Aún no has seleccionado números.';
+
+    document.getElementById('continueBtn').disabled =
+      cantidad === 0;
+
+    document.getElementById('reserveBtn').disabled =
+      cantidad === 0;
+
+    if(cantidad > 0){
+      document.getElementById('formPanel')
+        .scrollIntoView({
+          behavior:'smooth',
+          block:'nearest'
+        });
+    }
+  }
+
+  function mostrarFormulario(){
+    if(seleccionados.size === 0){
+      return;
+    }
+
+    document.getElementById('formPanel')
+      .scrollIntoView({
+        behavior:'smooth',
+        block:'start'
+      });
+
+    document.getElementById('nombre').focus();
+  }
+
+  function cambiarPago(){
+    const metodo =
+      document.querySelector(
+        'input[name="metodoPago"]:checked'
+      )?.value;
+
+    document
+      .getElementById('transferOption')
+      .classList.toggle(
+        'active',
+        metodo === 'TRANSFERENCIA'
+      );
+
+    document
+      .getElementById('cashOption')
+      .classList.toggle(
+        'active',
+        metodo === 'EFECTIVO'
+      );
+
+    document
+      .getElementById('bankInfo')
+      .classList.toggle(
+        'show',
+        metodo === 'TRANSFERENCIA'
+      );
+  }
+
+  function enviarReserva(event){
+    event.preventDefault();
+
+    if(seleccionados.size === 0){
+      mostrarAviso(
+        'Selecciona al menos un número.',
+        true
+      );
+      return;
+    }
+
+    const btn =
+      document.getElementById('reserveBtn');
+
+    btn.disabled = true;
+    btn.textContent = 'Procesando...';
+
+    ocultarAviso();
+
+    const metodo =
+      document.querySelector(
+        'input[name="metodoPago"]:checked'
+      )?.value || 'TRANSFERENCIA';
+
+    metodoPagoUltimo = metodo;
+
+    const datos = {
+      codigoRifa: codigoRifa,
+      numeros: [...seleccionados].sort((a,b)=>a-b),
+      nombre: document.getElementById('nombre').value,
+      apellido: document.getElementById('apellido').value,
+      cedula: document.getElementById('cedula').value,
+      telefono: document.getElementById('telefono').value,
+      email: document.getElementById('email').value,
+      ciudad: document.getElementById('ciudad').value,
+      metodoPago: metodo
+    };
+
+    // IMPORTANTE: conservar los números enviados al backend.
+    // La actualización automática puede cambiar 'seleccionados' mientras
+    // esperamos la respuesta de la reserva.
+    numerosReservaEnCurso = new Set(datos.numeros.map(Number));
+
+    apiCall('reservarNumeros', datos).then(respuesta => {
+        btn.disabled = false;
+        btn.textContent = 'Reservar números';
+
+        procesarReservaExitosa(respuesta);
+      }).catch(error => {
+        numerosReservaEnCurso.clear();
+        btn.disabled = seleccionados.size === 0;
+        btn.textContent = 'Reservar números';
+
+        mostrarAviso(
+          obtenerMensajeError(error),
+          true
+        );
+
+        /*
+         * Recargamos números porque alguno puede haber
+         * sido tomado por otra persona mientras el cliente
+         * completaba el formulario.
+         */
+        cargarNumeros();
+      });
+  }
+
+  function procesarReservaExitosa(respuesta){
+    if(!respuesta || !respuesta.ok){
+      mostrarAviso(
+        'No fue posible completar la reserva.',
+        true
+      );
+      return;
+    }
+
+    // Conservamos exactamente los números enviados en esta reserva.
+    // No usamos 'seleccionados' aquí porque el refresco automático puede
+    // haberlo vaciado mientras el backend procesaba la solicitud.
+    numerosPedidoActual = new Set([...numerosReservaEnCurso].map(Number));
+    numerosReservaEnCurso.clear();
+
+    seleccionados.clear();
+    renderNumeros();
+
+    idPedidoActual = respuesta.idPedido || '';
+
+    document.getElementById('orderCode').textContent =
+      respuesta.codigoPedido;
+
+    document.getElementById('orderMessage').textContent =
+      `${respuesta.mensaje} Total: ${moneda(respuesta.total)}. ` +
+      `La reserva vence: ${respuesta.reservaHasta}.`;
+
+    document.getElementById('orderResult')
+      .classList.add('show');
+
+    const metodoReserva = String(
+      respuesta.metodoPago || metodoPagoUltimo || 'TRANSFERENCIA'
+    ).toUpperCase();
+    metodoPagoUltimo = metodoReserva;
+
+    const proofPanel = document.getElementById('proofPanel');
+    proofPanel.classList.toggle('show', metodoReserva === 'TRANSFERENCIA');
+    document.getElementById('proofStatus').textContent =
+      metodoReserva === 'TRANSFERENCIA'
+        ? 'Adjunta el comprobante para que el administrador pueda validar tu pago.'
+        : 'Pago en efectivo: espera la confirmación del operador.';
+
+    document.getElementById('reservationForm')
+      .reset();
+
+    cambiarPago();
+
+    document.getElementById('reserveBtn').disabled = true;
+
+    mostrarAviso(
+      'Reserva creada correctamente.',
+      false
+    );
+
+    cargarRifa();
+  }
+
+  function enviarComprobante(){
+    if(!idPedidoActual){
+      mostrarAviso('No existe un pedido activo.', true);
+      return;
+    }
+
+    const input = document.getElementById('proofFile');
+    const file = input.files && input.files[0];
+    if(!file){
+      document.getElementById('proofStatus').textContent = 'Selecciona un archivo.';
+      return;
+    }
+    if(file.size > 5 * 1024 * 1024){
+      document.getElementById('proofStatus').textContent = 'El archivo supera el límite de 5 MB.';
+      return;
+    }
+
+    const allowed = ['application/pdf','image/jpeg','image/png','image/webp'];
+    if(!allowed.includes(file.type)) {
+      document.getElementById('proofStatus').textContent = 'Formato no permitido. Usa PDF, JPG, PNG o WEBP.';
+      return;
+    }
+
+    const btn = document.getElementById('proofBtn');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    document.getElementById('proofStatus').textContent = 'Subiendo comprobante...';
+
+    const reader = new FileReader();
+    reader.onload = function(){
+      try {
+        const base64 = String(reader.result).split(',')[1] || '';
+        apiCall('subirComprobante', idPedidoActual, file.name, file.type, base64).then(res => {
+            // El comprobante ya quedó asociado al pedido anterior y el pago
+            // permanece EN_REVISION en el servidor. Liberamos solamente la
+            // interfaz local para que el operador pueda iniciar otra venta.
+            mostrarAviso(
+              'Comprobante enviado correctamente. El pago quedó en revisión y ya puedes realizar una nueva venta.',
+              false
+            );
+
+            idPedidoActual = '';
+            numerosPedidoActual.clear();
+            numerosReservaEnCurso.clear();
+            seleccionados.clear();
+
+            const orderResult = document.getElementById('orderResult');
+            if(orderResult) orderResult.classList.remove('show');
+
+            const orderCode = document.getElementById('orderCode');
+            if(orderCode) orderCode.textContent = '—';
+
+            const orderMessage = document.getElementById('orderMessage');
+            if(orderMessage) orderMessage.textContent = '';
+
+            // Limpiar comprobante anterior.
+            input.value = '';
+            input.disabled = false;
+            btn.disabled = false;
+            btn.textContent = 'Enviar comprobante';
+
+            const proofStatus = document.getElementById('proofStatus');
+            if(proofStatus) proofStatus.textContent = '';
+
+            const proofPanel = document.getElementById('proofPanel');
+            if(proofPanel) proofPanel.classList.remove('show');
+
+            // Limpiar datos del cliente anterior y preparar una venta nueva.
+            const form = document.getElementById('reservationForm');
+            if(form) form.reset();
+
+            metodoPagoUltimo = 'TRANSFERENCIA';
+            cambiarPago();
+            actualizarSeleccion();
+
+            // El número anterior seguirá reservado/en revisión porque aquí
+            // no modificamos el backend. Solo refrescamos la cuadrícula.
+            cargarNumeros();
+          }).catch(err => {
+            btn.disabled = false;
+            btn.textContent = 'Enviar comprobante';
+            document.getElementById('proofStatus').textContent = obtenerMensajeError(err);
+          });
+      } catch(e) {
+        btn.disabled = false;
+        btn.textContent = 'Enviar comprobante';
+        document.getElementById('proofStatus').textContent = e.message || 'Error al preparar el archivo.';
+      }
+    };
+    reader.onerror = function(){
+      btn.disabled = false;
+      btn.textContent = 'Enviar comprobante';
+      document.getElementById('proofStatus').textContent = 'No se pudo leer el archivo.';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function actualizarEstadisticas(stats){
+    if(!stats) return;
+
+    document.getElementById('statTotal').textContent =
+      Number(stats.total || 0).toLocaleString('es-EC');
+
+    document.getElementById('statDisponible').textContent =
+      Number(stats.disponibles || 0).toLocaleString('es-EC');
+
+    document.getElementById('statReservado').textContent =
+      Number(stats.reservados || 0).toLocaleString('es-EC');
+
+    document.getElementById('statVendido').textContent =
+      Number(stats.vendidos || 0).toLocaleString('es-EC');
+  }
+
+  function filtrarNumeros(){
+    renderNumeros();
+  }
+
+  function iniciarCuentaRegresiva(datos){
+    if(countdownTimer){
+      clearInterval(countdownTimer);
+    }
+
+    const fecha = construirFechaSorteo(datos);
+
+    if(!fecha){
+      document.getElementById('countdown').textContent =
+        'Fecha por definir';
+      return;
+    }
+
+    function actualizar(){
+      const ahora = new Date();
+      const diferencia =
+        fecha.getTime() - ahora.getTime();
+
+      if(diferencia <= 0){
+        document.getElementById('countdown').textContent =
+          '¡Sorteo iniciado!';
+        clearInterval(countdownTimer);
+        return;
+      }
+
+      const dias =
+        Math.floor(diferencia / 86400000);
+
+      const horas =
+        Math.floor(
+          (diferencia % 86400000) / 3600000
+        );
+
+      const minutos =
+        Math.floor(
+          (diferencia % 3600000) / 60000
+        );
+
+      const segundos =
+        Math.floor(
+          (diferencia % 60000) / 1000
+        );
+
+      document.getElementById('countdown').textContent =
+        `${dias}d ${pad(horas)}h ${pad(minutos)}m ${pad(segundos)}s`;
+    }
+
+    actualizar();
+    countdownTimer =
+      setInterval(actualizar,1000);
+  }
+
+  function construirFechaSorteo(datos){
+    if(!datos.fechaSorteo) return null;
+
+    const partes =
+      datos.fechaSorteo.split('/');
+
+    if(partes.length !== 3){
+      return null;
+    }
+
+    const dia = Number(partes[0]);
+    const mes = Number(partes[1]) - 1;
+    const anio = Number(partes[2]);
+
+    let hora = 0;
+    let minuto = 0;
+
+    if(datos.horaSorteo){
+      const hp =
+        datos.horaSorteo.split(':');
+
+      hora = Number(hp[0] || 0);
+      minuto = Number(hp[1] || 0);
+    }
+
+    return new Date(
+      anio,
+      mes,
+      dia,
+      hora,
+      minuto,
+      0
+    );
+  }
+
+  function compartirRifa(){
+    const url = window.location.href;
+
+    const texto =
+      `🎟️ ${rifa?.nombre || 'Rifa'}\n` +
+      `🏆 Premio: ${rifa?.premio || ''}\n` +
+      `💰 Número: ${moneda(rifa?.precio || 0)}\n` +
+      `👉 Participa aquí:\n${url}`;
+
+    if(navigator.share){
+      navigator.share({
+        title: rifa?.nombre || 'Rifa Master',
+        text: texto,
+        url: url
+      }).catch(()=>{});
+    }else{
+      copiarTexto(texto);
+      mostrarAviso(
+        'Enlace de participación copiado.',
+        false
+      );
+    }
+  }
+
+  function copiarCodigo(){
+    const codigo =
+      document.getElementById('orderCode').textContent;
+
+    copiarTexto(codigo);
+
+    mostrarAviso(
+      'Código copiado al portapapeles.',
+      false
+    );
+  }
+
+  function copiarTexto(texto){
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(texto);
+    }else{
+      const textarea =
+        document.createElement('textarea');
+
+      textarea.value = texto;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+  }
+
+  function moneda(valor){
+    return new Intl.NumberFormat(
+      'es-EC',
+      {
+        style:'currency',
+        currency:'USD'
+      }
+    ).format(Number(valor || 0));
+  }
+
+  function pad(valor){
+    return String(valor).padStart(2,'0');
+  }
+
+  function mostrarAviso(mensaje,error){
+    const aviso =
+      document.getElementById('notice');
+
+    aviso.textContent = mensaje;
+    aviso.className =
+      'notice show ' +
+      (error ? 'error' : 'success');
+  }
+
+  function ocultarAviso(){
+    const aviso =
+      document.getElementById('notice');
+
+    aviso.className = 'notice';
+    aviso.textContent = '';
+  }
+
+  function mostrarError(error){
+    const mensaje =
+      obtenerMensajeError(error);
+
+    document.getElementById('numbers').innerHTML =
+      `<div class="empty" style="grid-column:1/-1">
+        <strong style="color:#fecaca">No se pudo cargar la rifa</strong>
+        <div style="margin-top:7px">${escapeHtml(mensaje)}</div>
+      </div>`;
+
+    mostrarAviso(mensaje,true);
+  }
+
+  function obtenerMensajeError(error){
+    if(!error) return 'Ocurrió un error inesperado.';
+
+    if(typeof error === 'string'){
+      return error;
+    }
+
+    return error.message ||
+      'Ocurrió un error inesperado.';
+  }
+
+  function escapeHtml(texto){
+    return String(texto || '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#039;');
+  }
+</script>
+
+</body>
+</html>
