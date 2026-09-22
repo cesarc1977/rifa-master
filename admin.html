@@ -18,40 +18,44 @@
 /* RIFA MASTER - cliente API externo */
 const RIFA_API_URL = 'https://rifa-master-api.cesarcarval77.workers.dev';
 async function apiCall(action, ...args){
-  if (RIFA_API_URL.includes('PEGA_AQUI')) throw new Error('Falta configurar RIFA_API_URL en el frontend.');
-
+  if(RIFA_API_URL.includes('PEGA_AQUI')) throw new Error('Falta configurar RIFA_API_URL en el frontend.');
   let ultimoError=null;
-  for(let intento=1; intento<=2; intento++){
+  for(let intento=1;intento<=3;intento++){
     try{
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),18000);
       const response=await fetch(RIFA_API_URL,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({action,args}),
-        cache:'no-store'
+        cache:'no-store',
+        signal:controller.signal
       });
+      clearTimeout(timer);
       const texto=await response.text();
       const tipo=String(response.headers.get('content-type')||'').toLowerCase();
-
-      if(!response.ok) throw new Error(`API HTTP ${response.status}.`);
-
+      if(!response.ok){
+        const e=new Error(`API HTTP ${response.status}.`);
+        e.httpStatus=response.status;
+        throw e;
+      }
       let payload;
-      try{
-        payload=JSON.parse(texto);
-      }catch(e){
-        if(/^\s*</.test(texto)||tipo.includes('text/html')){
-          throw new Error('El servidor respondió temporalmente con HTML en lugar de JSON.');
-        }
+      try{payload=JSON.parse(texto)}
+      catch(e){
+        if(/^\s*</.test(texto)||tipo.includes('text/html')) throw new Error('El servidor respondió temporalmente con HTML en lugar de JSON.');
         throw new Error('La API devolvió una respuesta no válida.');
       }
-
       if(!payload.okApi) throw new Error(payload.error||'Error del servidor');
       return payload.data;
     }catch(e){
       ultimoError=e;
-      if(intento<2){
-        await new Promise(resolve=>setTimeout(resolve,650));
+      const status=Number(e.httpStatus||0);
+      const reintentar=!status || status===408 || status===429 || status>=500;
+      if(intento<3 && reintentar){
+        await new Promise(r=>setTimeout(r,500*intento));
         continue;
       }
+      break;
     }
   }
   throw ultimoError||new Error('No se pudo comunicar con el servidor.');
@@ -227,12 +231,14 @@ function status(s){const x=String(s||'');let c='pending';if(x==='APROBADO'||x===
 
 async function login(){
   $('loginMsg').textContent='Ingresando...';
-  try{const r=await run('iniciarSesionAdmin',$('loginEmail').value,$('loginPassword').value);token=r.token;sessionUser=r.usuario;localStorage.setItem('rifa_master_admin_token',token);showApp();toast('Sesión iniciada');}
+  try{const r=await run('iniciarSesionAdmin',$('loginEmail').value,$('loginPassword').value);token=r.token;sessionUser=r.usuario;localStorage.setItem('rifa_master_admin_token',token);showApp(true);toast('Sesión iniciada');}
   catch(e){$('loginMsg').textContent=err(e)}
 }
-async function showApp(){
-  try{const r=await run('obtenerSesionAdmin',token);sessionUser=r.usuario;}
-  catch(e){localStorage.removeItem('rifa_master_admin_token');token='';return showLogin()}
+async function showApp(sesionYaValidada=false){
+  if(!sesionYaValidada){
+    try{const r=await run('obtenerSesionAdmin',token);sessionUser=r.usuario;}
+    catch(e){localStorage.removeItem('rifa_master_admin_token');token='';return showLogin()}
+  }
   $('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('userName').textContent=sessionUser.nombre||sessionUser.email;$('userRole').textContent=sessionUser.rol;applyRole();loadDashboard();
 }
 function showLogin(){$('loginView').classList.remove('hidden');$('appView').classList.add('hidden')}
