@@ -1385,7 +1385,14 @@ async function apiCall(action, ...args){
       telefono: document.getElementById('telefono').value,
       email: document.getElementById('email').value,
       ciudad: document.getElementById('ciudad').value,
-      metodoPago: metodo
+      metodoPago: metodo,
+      // Identificador único de esta operación. Se conserva en cualquier
+      // reintento HTTP para que el backend no duplique la reserva.
+      idSolicitud: (
+        (window.crypto && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : (Date.now() + '-' + Math.random().toString(36).slice(2))
+      )
     };
 
     // IMPORTANTE: conservar los números enviados al backend.
@@ -1467,11 +1474,35 @@ async function apiCall(action, ...args){
     document.getElementById('reserveBtn').disabled = true;
 
     mostrarAviso(
-      'Reserva creada correctamente.',
+      metodoReserva === 'EFECTIVO'
+        ? 'Reserva en efectivo creada correctamente. Quedó pendiente de aprobación en Administración y ya puedes realizar otra venta.'
+        : 'Reserva creada correctamente.',
       false
     );
 
-    cargarRifa();
+    // EFECTIVO no necesita comprobante. El pedido permanece RESERVADO/PENDIENTE
+    // en el servidor, pero NO debe bloquear la siguiente venta en este navegador.
+    if(metodoReserva === 'EFECTIVO'){
+      idPedidoActual = '';
+      numerosPedidoActual.clear();
+      numerosReservaEnCurso.clear();
+
+      if(proofPanel) proofPanel.classList.remove('show');
+
+      // Conservamos unos instantes el código del pedido para que el operador
+      // pueda verlo/copiarlo, pero dejamos el formulario listo para vender.
+      setTimeout(() => {
+        const form = document.getElementById('reservationForm');
+        if(form) form.reset();
+        metodoPagoUltimo = 'TRANSFERENCIA';
+        cambiarPago();
+        actualizarSeleccion();
+        cargarNumeros();
+      }, 100);
+    }else{
+      // TRANSFERENCIA conserva idPedidoActual hasta que se suba el comprobante.
+      cargarNumeros();
+    }
   }
 
   function enviarComprobante(){
