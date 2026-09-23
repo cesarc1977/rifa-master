@@ -145,7 +145,24 @@ async function apiCall(action, ...args){
     <div id="dashboardText" class="sub" style="margin-top:14px"></div>
   </section>
 
-  <section id="pagos" class="section"><div class="card"><div class="bar"><div><h3 style="margin:0">Pagos por revisar</h3><div class="sub">Los números se convierten en vendidos solamente al aprobar.</div></div><button class="btn ghost small" onclick="loadPayments()">Actualizar</button></div><div id="paymentsBox"></div></div></section>
+  <section id="pagos" class="section">
+    <div class="card">
+      <div class="bar">
+        <div>
+          <h3 style="margin:0">Pagos por revisar</h3>
+          <div class="sub">Revisa los pagos de una rifa específica o de todas las rifas.</div>
+        </div>
+        <button class="btn ghost small" onclick="loadPayments()">Actualizar</button>
+      </div>
+      <div class="field" style="max-width:430px;margin:14px 0">
+        <label>Rifa</label>
+        <select id="paymentRaffleFilter" onchange="loadPayments()">
+          <option value="">Todas las rifas</option>
+        </select>
+      </div>
+      <div id="paymentsBox"></div>
+    </div>
+  </section>
 
   <section id="pedidos" class="section">
   <div class="grid" style="margin-bottom:14px">
@@ -338,7 +355,63 @@ async function loadDashboard(){
   }
 }
 
-async function loadPayments(){try{const rows=await run('obtenerPagosPendientes',token);if(!rows.length){$('paymentsBox').innerHTML='<div class="notice">No hay pagos pendientes o aprobados.</div>';return}let h='<div class="table-wrap"><table class="table"><thead><tr><th>Pedido</th><th>Método</th><th>Monto</th><th>Estado</th><th>Comprobante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>';rows.forEach(p=>{const ok=String(p.estado||'').toUpperCase()==='APROBADO';h+=`<tr><td><b>${esc(p.idPedido)}</b></td><td>${esc(p.metodo)}</td><td>${money(p.monto)}</td><td>${status(p.estado)}</td><td>${p.comprobante?`<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`:'—'}</td><td>${esc(p.fechaPago)}</td><td><div class="actions">${ok?`<button class="btn primary small" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:`<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button><button class="btn danger small" onclick="reject('${esc(p.idPago)}')">Rechazar</button>`}</div></td></tr>`});$('paymentsBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
+let paymentRafflesLoaded=false;
+
+async function ensurePaymentRaffleFilter(){
+  const sel=$('paymentRaffleFilter');
+  if(!sel || paymentRafflesLoaded) return;
+  const rows=await run('obtenerTodasLasRifas',token);
+  const actual=sel.value||'';
+  sel.innerHTML='<option value="">Todas las rifas</option>'+
+    rows.map(r=>`<option value="${esc(r.idRifa)}">${esc(r.idRifa)} - ${esc(r.nombre)} (${esc(r.estado)})</option>`).join('');
+  if([...sel.options].some(o=>o.value===actual)) sel.value=actual;
+  paymentRafflesLoaded=true;
+}
+
+async function loadPayments(){
+  const sel=$('paymentRaffleFilter');
+  try{
+    await ensurePaymentRaffleFilter();
+    const idRifa=sel?sel.value:'';
+    if(sel) sel.disabled=true;
+
+    const rows=await run('obtenerPagosPendientes',token,idRifa);
+
+    if(!rows.length){
+      $('paymentsBox').innerHTML='<div class="notice">No hay pagos para la rifa seleccionada.</div>';
+      return;
+    }
+
+    let h='<div class="table-wrap"><table class="table"><thead><tr>'+
+      '<th>Pedido</th><th>Rifa</th><th>Método</th><th>Monto</th><th>Estado</th>'+
+      '<th>Comprobante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>';
+
+    rows.slice().reverse().forEach(p=>{
+      const ok=String(p.estado||'').toUpperCase()==='APROBADO';
+      h+=`<tr>
+        <td><b>${esc(p.idPedido)}</b></td>
+        <td><b>${esc(p.idRifa||'—')}</b><div class="sub">${esc(p.rifa||'')}</div></td>
+        <td>${esc(p.metodo)}</td>
+        <td>${money(p.monto)}</td>
+        <td>${status(p.estado)}</td>
+        <td>${p.comprobante?`<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`:'—'}</td>
+        <td>${esc(p.fechaPago)}</td>
+        <td><div class="actions">${
+          ok
+          ? `<button class="btn primary small" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`
+          : `<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button>
+             <button class="btn danger small" onclick="reject('${esc(p.idPago)}')">Rechazar</button>`
+        }</div></td>
+      </tr>`;
+    });
+
+    $('paymentsBox').innerHTML=h+'</tbody></table></div>';
+  }catch(e){
+    toast(err(e));
+  }finally{
+    if(sel) sel.disabled=false;
+  }
+}
 async function generateTicket(idPedido){try{const r=await run('generarBoletoPagoAprobado',token,idPedido);openModal(`<h3>🎟️ Boleto generado</h3><p class="sub">Números: <b>${esc((r.numeros||[]).join(', '))}</b></p><p><a class="btn primary" href="${esc(r.url)}" target="_blank">Abrir boleto PDF</a> <button class="btn ghost" onclick="window.open('${esc(r.whatsappUrl)}','_blank')">💬 WhatsApp</button></p>`);toast(r.mensaje)}catch(e){toast(err(e))}}
 async function approve(id){
   const obs=prompt('Observación opcional para aprobar:','Pago verificado');
