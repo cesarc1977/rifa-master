@@ -145,7 +145,7 @@ async function apiCall(action, ...args){
     <div id="dashboardText" class="sub" style="margin-top:14px"></div>
   </section>
 
-  <section id="pagos" class="section"><div class="card"><div class="bar"><div><h3 style="margin:0">Pagos por revisar</h3><div class="sub">Los números se convierten en vendidos solamente al aprobar.</div></div><button class="btn ghost small" onclick="loadPayments()">Actualizar</button></div><div class="field" style="margin:14px 0"><label>Rifa</label><select id="paymentRaffleFilter" onchange="loadPayments()"><option value="">Todas las rifas</option></select></div><div id="paymentsBox"></div></div></section>
+  <section id="pagos" class="section"><div class="card"><div class="bar"><div><h3 style="margin:0">Pagos por revisar</h3><div class="sub">Los números se convierten en vendidos solamente al aprobar.</div></div><button class="btn ghost small" onclick="loadPayments()">Actualizar</button></div><div id="paymentsBox"></div></div></section>
 
   <section id="pedidos" class="section">
   <div class="grid" style="margin-bottom:14px">
@@ -338,28 +338,7 @@ async function loadDashboard(){
   }
 }
 
-let paymentRafflesLoaded=false;
-async function ensurePaymentRaffleFilter(){
-  const sel=$('paymentRaffleFilter');
-  if(!sel || paymentRafflesLoaded) return;
-  const rifas=await run('obtenerTodasLasRifas',token);
-  const actual=sel.value||'';
-  sel.innerHTML='<option value="">Todas las rifas</option>'+rifas.map(r=>`<option value="${esc(r.idRifa)}">${esc(r.idRifa)} - ${esc(r.nombre)} (${esc(r.estado)})</option>`).join('');
-  if([...sel.options].some(o=>o.value===actual)) sel.value=actual;
-  paymentRafflesLoaded=true;
-}
-async function loadPayments(){
-  try{
-    await ensurePaymentRaffleFilter();
-    const sel=$('paymentRaffleFilter');
-    const idRifa=sel?sel.value:'';
-    const rows=await run('obtenerPagosPendientes',token,idRifa);
-    if(!rows.length){$('paymentsBox').innerHTML='<div class="notice">No hay pagos pendientes o aprobados para la rifa seleccionada.</div>';return}
-    let h='<div class="table-wrap"><table class="table"><thead><tr><th>Pedido</th><th>Rifa</th><th>Método</th><th>Monto</th><th>Estado</th><th>Comprobante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>';
-    rows.forEach(p=>{const ok=String(p.estado||'').toUpperCase()==='APROBADO';h+=`<tr><td><b>${esc(p.idPedido)}</b></td><td><b>${esc(p.idRifa||'—')}</b><div class="sub">${esc(p.rifa||'')}</div></td><td>${esc(p.metodo)}</td><td>${money(p.monto)}</td><td>${status(p.estado)}</td><td>${p.comprobante?`<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`:'—'}</td><td>${esc(p.fechaPago)}</td><td><div class="actions">${ok?`<button class="btn primary small" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:`<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button><button class="btn danger small" onclick="reject('${esc(p.idPago)}')">Rechazar</button>`}</div></td></tr>`});
-    $('paymentsBox').innerHTML=h+'</tbody></table></div>';
-  }catch(e){toast(err(e))}
-}
+async function loadPayments(){try{const rows=await run('obtenerPagosPendientes',token);if(!rows.length){$('paymentsBox').innerHTML='<div class="notice">No hay pagos pendientes o aprobados.</div>';return}let h='<div class="table-wrap"><table class="table"><thead><tr><th>Pedido</th><th>Método</th><th>Monto</th><th>Estado</th><th>Comprobante</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>';rows.forEach(p=>{const ok=String(p.estado||'').toUpperCase()==='APROBADO';h+=`<tr><td><b>${esc(p.idPedido)}</b></td><td>${esc(p.metodo)}</td><td>${money(p.monto)}</td><td>${status(p.estado)}</td><td>${p.comprobante?`<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`:'—'}</td><td>${esc(p.fechaPago)}</td><td><div class="actions">${ok?`<button class="btn primary small" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:`<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button><button class="btn danger small" onclick="reject('${esc(p.idPago)}')">Rechazar</button>`}</div></td></tr>`});$('paymentsBox').innerHTML=h+'</tbody></table></div>'}catch(e){toast(err(e))}}
 async function generateTicket(idPedido){try{const r=await run('generarBoletoPagoAprobado',token,idPedido);openModal(`<h3>🎟️ Boleto generado</h3><p class="sub">Números: <b>${esc((r.numeros||[]).join(', '))}</b></p><p><a class="btn primary" href="${esc(r.url)}" target="_blank">Abrir boleto PDF</a> <button class="btn ghost" onclick="window.open('${esc(r.whatsappUrl)}','_blank')">💬 WhatsApp</button></p>`);toast(r.mensaje)}catch(e){toast(err(e))}}
 async function approve(id){
   const obs=prompt('Observación opcional para aprobar:','Pago verificado');
@@ -402,6 +381,11 @@ async function loadOrders(){
       if([...sel.options].some(o=>o.value===actual)) sel.value=actual;
     }
 
+    $('oTotal').textContent=ordersData.length;
+    $('oPagados').textContent=ordersData.filter(x=>String(x.estadoPago).toUpperCase()==='APROBADO').length;
+    $('oRevision').textContent=ordersData.filter(x=>String(x.estadoPago).toUpperCase()==='EN_REVISION').length;
+    $('oMonto').textContent=money(ordersData.filter(x=>String(x.estadoPago).toUpperCase()==='APROBADO').reduce((n,x)=>n+Number(x.total||0),0));
+
     renderOrders();
   }catch(e){toast(err(e))}
 }
@@ -420,12 +404,6 @@ function renderOrders(){
     }
     return true;
   }).slice().reverse();
-
-  // Los indicadores superiores respetan exactamente los filtros visibles.
-  $('oTotal').textContent=rows.length;
-  $('oPagados').textContent=rows.filter(x=>String(x.estadoPago||'').toUpperCase()==='APROBADO').length;
-  $('oRevision').textContent=rows.filter(x=>String(x.estadoPago||'').toUpperCase()==='EN_REVISION').length;
-  $('oMonto').textContent=money(rows.filter(x=>String(x.estadoPago||'').toUpperCase()==='APROBADO').reduce((n,x)=>n+Number(x.total||0),0));
 
   if(!rows.length){
     $('ordersBox').innerHTML='<div class="notice">No hay pedidos que coincidan con los filtros.</div>';
@@ -446,6 +424,42 @@ function renderOrders(){
     </tr>`;
   });
   $('ordersBox').innerHTML=h+'</tbody></table></div>';
+}
+
+function confirmDeleteTestOrder(idPedido,codigo){
+  openModal(`
+    <h3 style="margin-top:0">⚠️ Eliminar pedido de prueba</h3>
+    <div class="notice">
+      Vas a eliminar <b>${esc(codigo)}</b>.<br><br>
+      Se liberarán sus números y se eliminarán sus registros de
+      reservas, detalle, pago y pedido. El cliente solo se eliminará
+      si no tiene otros pedidos. La auditoría se conservará.
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label>Escribe <b>ELIMINAR</b> para confirmar</label>
+      <input id="deleteTestConfirm" autocomplete="off" placeholder="ELIMINAR">
+    </div>
+    <button id="deleteTestBtn" class="btn danger" style="width:100%;margin-top:14px"
+      onclick="deleteTestOrder('${esc(idPedido)}')">Eliminar definitivamente</button>
+  `);
+}
+
+async function deleteTestOrder(idPedido){
+  const input=$('deleteTestConfirm');
+  const btn=$('deleteTestBtn');
+  const confirmacion=String(input&&input.value||'').trim().toUpperCase();
+  if(confirmacion!=='ELIMINAR'){toast('Escribe ELIMINAR para confirmar.');return;}
+  try{
+    btn.disabled=true; btn.textContent='Eliminando...';
+    const r=await run('eliminarPedidoPrueba',token,idPedido,confirmacion);
+    closeModal();
+    toast(r.mensaje||'Pedido de prueba eliminado.');
+    await loadOrders();
+    loadDashboard();
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Eliminar definitivamente'}
+    toast(err(e));
+  }
 }
 
 async function viewOrder(idPedido){
@@ -503,6 +517,12 @@ async function viewOrder(idPedido){
           ${String(pago.estado||'').toUpperCase()==='APROBADO'?`<button class="btn primary" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`:''}
         </div>
       </div>
+    ${sessionUser && sessionUser.rol==='SUPER_ADMIN' && String(pago.estado||'').toUpperCase()!=='APROBADO'
+  ? `<div style="margin-top:16px;padding-top:14px;border-top:1px solid #263b52">
+       <button class="btn danger" onclick="confirmDeleteTestOrder('${esc(p.idPedido)}','${esc(p.codigo)}')">Eliminar pedido de prueba</button>
+       <div class="sub" style="margin-top:6px">Solo SUPER_ADMIN · libera números y elimina registros relacionados. Auditoría se conserva.</div>
+     </div>`
+  : ''}
     `);
   }catch(e){toast(err(e))}
 }
