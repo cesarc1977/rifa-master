@@ -61,6 +61,38 @@ async function apiCall(action, ...args){
   throw ultimoError||new Error('No se pudo comunicar con el servidor.');
 }
 </script>
+<script>
+async function apiCallLargo(action, ...args){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),90000);
+  try{
+    const response=await fetch(RIFA_API_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action,args}),
+      cache:'no-store',
+      signal:controller.signal
+    });
+    const texto=await response.text();
+    const tipo=String(response.headers.get('content-type')||'').toLowerCase();
+    if(!response.ok){
+      const e=new Error(`API HTTP ${response.status}.`);
+      e.httpStatus=response.status;
+      throw e;
+    }
+    let payload;
+    try{payload=JSON.parse(texto)}
+    catch(e){
+      if(/^\s*</.test(texto)||tipo.includes('text/html')) throw new Error('El servidor respondió temporalmente con HTML en lugar de JSON.');
+      throw new Error('La API devolvió una respuesta no válida.');
+    }
+    if(!payload.okApi) throw new Error(payload.error||'Error del servidor');
+    return payload.data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+</script>
 </head>
 <body>
 <div id="loginView" class="login">
@@ -412,7 +444,50 @@ async function loadPayments(){
     if(sel) sel.disabled=false;
   }
 }
-async function generateTicket(idPedido){try{const r=await run('generarBoletoPagoAprobado',token,idPedido);openModal(`<h3>🎟️ Boleto generado</h3><p class="sub">Números: <b>${esc((r.numeros||[]).join(', '))}</b></p><p><a class="btn primary" href="${esc(r.url)}" target="_blank">Abrir boleto PDF</a> <button class="btn ghost" onclick="window.open('${esc(r.whatsappUrl)}','_blank')">💬 WhatsApp</button></p>`);toast(r.mensaje)}catch(e){toast(err(e))}}
+async function generateTicket(idPedido){
+  toast('Buscando boleto...');
+  try{
+    // 1) Primero buscar un PDF existente: normalmente responde en pocos segundos.
+    let r=await run('obtenerBoletoExistente',token,idPedido);
+
+    // 2) Solo generar si todavía no existe. Esta operación puede tardar más,
+    // por eso usa un tiempo de espera exclusivo de 90 segundos y NO se reintenta.
+    if(!r || !r.existe){
+      toast('Generando boleto PDF por primera vez...');
+      try{
+        r=await apiCallLargo('generarBoletoPagoAprobado',token,idPedido);
+      }catch(e){
+        // Si la conexión se cortó después de que Apps Script terminó el PDF,
+        // hacemos una consulta rápida de recuperación antes de mostrar error.
+        try{
+          await new Promise(x=>setTimeout(x,1800));
+          const recuperado=await run('obtenerBoletoExistente',token,idPedido);
+          if(recuperado && recuperado.existe) r=recuperado;
+          else throw e;
+        }catch(_){ throw e; }
+      }
+    }
+
+    if(!r || !r.url) throw new Error('No se pudo obtener la dirección del boleto PDF.');
+
+    const nums=(r.numeros||[]).join(', ');
+    openModal(`
+      <h3>🎟️ Boleto PDF</h3>
+      ${nums?`<p class="sub">Números: <b>${esc(nums)}</b></p>`:''}
+      <div class="notice">El boleto está listo. Si ya había sido generado, se reutilizó el mismo archivo.</div>
+      <p>
+        <a class="btn primary" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir boleto PDF</a>
+        ${r.downloadUrl?`<a class="btn ghost" href="${esc(r.downloadUrl)}" target="_blank" rel="noopener">Descargar</a>`:''}
+      </p>
+    `);
+    toast(r.mensaje||'Boleto listo.');
+  }catch(e){
+    const m=(e && e.name==='AbortError')
+      ? 'La generación tardó demasiado. Intenta abrir el boleto nuevamente; el sistema primero comprobará si terminó de generarse.'
+      : err(e);
+    toast(m);
+  }
+}
 async function approve(id){
   const obs=prompt('Observación opcional para aprobar:','Pago verificado');
   if(obs===null)return;
