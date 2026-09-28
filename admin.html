@@ -267,7 +267,7 @@ async function apiCallLargo(action, ...args){
 <div id="toast" class="toast"></div>
 
 <script>
-let token = localStorage.getItem('rifa_master_admin_token') || '';
+let token = sessionStorage.getItem('rifa_master_admin_token') || '';
 let sessionUser = null;
 const $ = id => document.getElementById(id);
 
@@ -280,18 +280,18 @@ function status(s){const x=String(s||'');let c='pending';if(x==='APROBADO'||x===
 
 async function login(){
   $('loginMsg').textContent='Ingresando...';
-  try{const r=await run('iniciarSesionAdmin',$('loginEmail').value,$('loginPassword').value);token=r.token;sessionUser=r.usuario;localStorage.setItem('rifa_master_admin_token',token);showApp(true);toast('Sesión iniciada');}
+  try{const r=await run('iniciarSesionAdmin',$('loginEmail').value,$('loginPassword').value);token=r.token;sessionUser=r.usuario;sessionStorage.setItem('rifa_master_admin_token',token);showApp(true);toast('Sesión iniciada');}
   catch(e){$('loginMsg').textContent=err(e)}
 }
 async function showApp(sesionYaValidada=false){
   if(!sesionYaValidada){
     try{const r=await run('obtenerSesionAdmin',token);sessionUser=r.usuario;}
-    catch(e){localStorage.removeItem('rifa_master_admin_token');token='';return showLogin()}
+    catch(e){sessionStorage.removeItem('rifa_master_admin_token');token='';return showLogin()}
   }
   $('loginView').classList.add('hidden');$('appView').classList.remove('hidden');$('userName').textContent=sessionUser.nombre||sessionUser.email;$('userRole').textContent=sessionUser.rol;applyRole();loadDashboard();
 }
 function showLogin(){$('loginView').classList.remove('hidden');$('appView').classList.add('hidden')}
-async function logout(){try{if(token)await run('cerrarSesionAdmin',token)}catch(e){} localStorage.removeItem('rifa_master_admin_token');token='';showLogin()}
+async function logout(){try{if(token)await run('cerrarSesionAdmin',token)}catch(e){} sessionStorage.removeItem('rifa_master_admin_token');token='';showLogin()}
 function applyRole(){
   if(sessionUser.rol!=='SUPER_ADMIN'){$('newUserBtn').classList.add('hidden');$('newRaffleBtn').classList.toggle('hidden',sessionUser.rol==='OPERADOR')}
   if(sessionUser.rol==='OPERADOR'){document.querySelector('[onclick="showTab(\'auditoria\',this)"]').classList.add('hidden');document.querySelector('[onclick="showTab(\'configuracion\',this)"]').classList.add('hidden');}
@@ -511,7 +511,7 @@ async function viewProof(id){
     const r=await run('obtenerComprobanteAdmin',token,id);
     if(!r||!r.existe){toast((r&&r.mensaje)||'No existe comprobante para este pago.');return;}
     const preview=r.previewUrl||r.url;
-    openModal(`<h3>📎 Comprobante de pago</h3><p class="sub">${esc(r.nombre||'Comprobante')} · ${esc(r.mimeType||'')}</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:15px"><a class="btn primary" href="${esc(preview)}" target="_blank" rel="noopener">Ver comprobante</a><a class="btn ghost" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir en Google Drive</a></div>${r.accesoEnlace===false?'<div class="notice" style="margin-top:14px">Google Drive no permitió habilitar acceso por enlace. Abre el archivo con una cuenta que tenga permiso.</div>':''}`);
+    openModal(`<h3>📎 Comprobante de pago</h3><p class="sub">${esc(r.nombre||'Comprobante')} · ${esc(r.mimeType||'')}</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:15px"><a class="btn primary" href="${esc(preview)}" target="_blank" rel="noopener">Ver comprobante</a><a class="btn ghost" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir en Google Drive</a></div>${r.privado?'<div class="notice" style="margin-top:14px">🔒 Comprobante privado. Google Drive pedirá una cuenta administrativa autorizada para verlo.</div>':''}`);
   }catch(e){toast(err(e))}
 }
 
@@ -993,4 +993,3 @@ if(token)showApp();
 </script>
 </body>
 </html>
-
