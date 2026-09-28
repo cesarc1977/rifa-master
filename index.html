@@ -964,6 +964,15 @@ async function apiCall(action, ...args){
     actualizandoNumeros = true;
     try{
       const respuesta = await apiCall('obtenerNumeros', codigoRifa);
+
+      if(respuesta && respuesta.cerrada){
+        detenerActualizacionAutomaticaNumeros();
+        seleccionados.clear();
+        numeros = [];
+        mostrarRifaFinalizada(respuesta.mensaje);
+        return;
+      }
+
       const nuevos = respuesta && respuesta.numeros ? respuesta.numeros : [];
 
       // Si otro usuario reservó/vendió un número que este visitante tenía
@@ -1176,6 +1185,13 @@ async function apiCall(action, ...args){
 
   function cargarNumeros(){
     apiCall('obtenerNumeros', codigoRifa).then(respuesta => {
+        if(respuesta && respuesta.cerrada){
+          detenerActualizacionAutomaticaNumeros();
+          seleccionados.clear();
+          numeros = [];
+          mostrarRifaFinalizada(respuesta.mensaje);
+          return;
+        }
         numeros = respuesta.numeros || [];
         renderNumeros();
         actualizarEstadisticasDesdeNumeros();
@@ -1792,9 +1808,29 @@ async function apiCall(action, ...args){
     aviso.textContent = '';
   }
 
+  function mostrarRifaFinalizada(mensaje){
+    const contenedor=document.getElementById('numbers');
+    if(contenedor){
+      contenedor.innerHTML=`
+        <div class="empty" style="grid-column:1/-1;padding:32px 18px">
+          <div style="font-size:46px">🏆</div>
+          <strong style="display:block;font-size:24px;color:#fde68a;margin-top:8px">RIFA FINALIZADA</strong>
+          <div style="margin-top:10px;color:#cbd5e1">${escapeHtml(mensaje || 'Esta rifa ya fue sorteada. Las ventas están cerradas.')}</div>
+        </div>`;
+    }
+    const btn=document.getElementById('reserveButton');
+    if(btn) btn.disabled=true;
+    mostrarAviso('Esta rifa ya fue sorteada. No se pueden adquirir más números.',true);
+  }
+
   function mostrarError(error){
     const mensaje =
       obtenerMensajeError(error);
+
+    if(/sorteada|ventas.*cerrad|cerrada.*compra/i.test(mensaje)){
+      mostrarRifaFinalizada(mensaje);
+      return;
+    }
 
     document.getElementById('numbers').innerHTML =
       `<div class="empty" style="grid-column:1/-1">
