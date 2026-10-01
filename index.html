@@ -887,7 +887,7 @@ async function apiCall(action, ...args){
         <div id="postReserveBanks" style="margin-top:12px"></div>
         <div id="selectedBankDetails" class="bank-info" style="margin-top:10px"></div>
         <button id="whatsappProofBtn" class="proof-btn" type="button" onclick="enviarComprobanteWhatsApp()" disabled>
-          📲 Enviar tu Reserva por WhatsApp
+          📲 Enviar comprobante por WhatsApp
         </button>
         <div id="proofStatus" class="proof-status"></div>
       </div>
@@ -1542,7 +1542,7 @@ async function apiCall(action, ...args){
     const btn=document.getElementById('whatsappProofBtn');
     if(btn) btn.disabled=false;
     document.getElementById('proofStatus').textContent =
-      'Pulsa el voton para realizar tu reserva. Una vez realizada la transferencia a la cuenta seleccionada envia tu comprobante por WhatsApp y aprobaremos tu # de Rifa.';
+      'Realiza la transferencia y luego pulsa el botón para enviar el comprobante por WhatsApp.';
   }
 
   async function enviarComprobanteWhatsApp(){
