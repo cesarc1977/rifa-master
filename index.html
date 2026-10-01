@@ -887,7 +887,7 @@ async function apiCall(action, ...args){
         <div id="postReserveBanks" style="margin-top:12px"></div>
         <div id="selectedBankDetails" class="bank-info" style="margin-top:10px"></div>
         <button id="whatsappProofBtn" class="proof-btn" type="button" onclick="enviarComprobanteWhatsApp()" disabled>
-          📲 Enviar comprobante por WhatsApp
+          📲 Enviar Reserva por WhatsApp
         </button>
         <div id="proofStatus" class="proof-status"></div>
       </div>
@@ -1460,7 +1460,7 @@ async function apiCall(action, ...args){
     if(metodoReserva === 'TRANSFERENCIA'){
       renderBancosPostReserva();
       document.getElementById('proofStatus').textContent =
-        'Selecciona uno de los bancos. Luego podrás enviar el comprobante por WhatsApp.';
+        'Selecciona uno de los bancos y luego envía la reserva por WhatsApp.';
     }else{
       document.getElementById('proofStatus').textContent =
         'Pago en efectivo: espera la confirmación del operador.';
@@ -1542,7 +1542,7 @@ async function apiCall(action, ...args){
     const btn=document.getElementById('whatsappProofBtn');
     if(btn) btn.disabled=false;
     document.getElementById('proofStatus').textContent =
-      'Realiza la transferencia y luego pulsa el botón para enviar el comprobante por WhatsApp.';
+      'Pulsa el botón para enviar tu reserva por WhatsApp; una vez realizada la transferencia envía tu comprobante de pago por el mismo medio (WhatsApp) y te enviaremos tu Boleto de Rifa.';
   }
 
   async function enviarComprobanteWhatsApp(){
@@ -1557,7 +1557,7 @@ async function apiCall(action, ...args){
 
     const btn=document.getElementById('whatsappProofBtn');
     btn.disabled=true;
-    btn.textContent='Preparando WhatsApp...';
+    btn.textContent='Preparando reserva...';
 
     try{
       const r=await apiCall('confirmarBancoTransferencia',idPedidoActual,bancoSeleccionadoIndice);
@@ -1573,10 +1573,10 @@ async function apiCall(action, ...args){
       window.open(url,'_blank','noopener');
 
       document.getElementById('proofStatus').textContent =
-        'WhatsApp abierto. Adjunta allí la foto o PDF del comprobante. El administrador lo registrará en el sistema.';
+        'Reserva enviada por WhatsApp. Una vez realizada la transferencia, envía tu comprobante de pago por el mismo chat y te enviaremos tu Boleto de Rifa.';
 
       mostrarAviso(
-        'Reserva creada. Envía el comprobante por WhatsApp. Ya puedes iniciar otra venta sin perder esta reserva.',
+        'Reserva creada. Envíala por WhatsApp. Una vez realizada la transferencia, envía el comprobante por el mismo chat.',
         false
       );
 
@@ -1604,7 +1604,7 @@ async function apiCall(action, ...args){
     }catch(e){
       document.getElementById('proofStatus').textContent=obtenerMensajeError(e);
       btn.disabled=false;
-      btn.textContent='📲 Enviar comprobante por WhatsApp';
+      btn.textContent='📲 Enviar Reserva por WhatsApp';
     }
   }
 
