@@ -298,10 +298,10 @@
       display:inline-block;
     }
 
-    .dot.available{background:#1d4ed8}
-    .dot.selected{background:var(--primary)}
-    .dot.reserved{background:#b45309}
-    .dot.sold{background:#475569}
+    .dot.available{background:#16a34a}
+    .dot.selected{background:#2563eb}
+    .dot.reserved{background:#64748b}
+    .dot.sold{background:#dc2626}
 
     .numbers{
       display:grid;
@@ -316,8 +316,9 @@
       min-height:40px;
       border:1px solid rgba(255,255,255,.08);
       border-radius:10px;
-      background:var(--available);
-      color:#dbeafe;
+      background:#16a34a;
+      border-color:#22c55e;
+      color:#fff;
       font-size:12px;
       font-weight:800;
       transition:.15s ease;
@@ -329,23 +330,25 @@
     }
 
     .number.selected{
-      background:var(--primary);
-      border-color:#86efac;
-      color:#052e16;
-      box-shadow:0 7px 18px rgba(34,197,94,.22);
+      background:#2563eb;
+      border-color:#3b82f6;
+      color:#fff;
+      box-shadow:0 7px 18px rgba(37,99,235,.22);
     }
 
     .number.reserved{
-      background:var(--reserved);
-      color:#fde68a;
+      background:#64748b;
+      border-color:#94a3b8;
+      color:#f8fafc;
       cursor:not-allowed;
     }
 
     .number.sold{
-      background:var(--sold);
-      color:#cbd5e1;
+      background:#dc2626;
+      border-color:#ef4444;
+      color:#fff;
       cursor:not-allowed;
-      opacity:.7;
+      opacity:.88;
     }
 
     .selection-bar{
@@ -617,7 +620,27 @@
     .proof-btn{margin-top:10px;width:100%;padding:11px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:800;cursor:pointer}
     .proof-btn:disabled{opacity:.55;cursor:not-allowed}
 
-</style>
+
+
+    .trust-banner{
+      display:flex;align-items:center;gap:16px;padding:17px 20px;
+      border:1px solid rgba(56,189,248,.28);border-radius:18px;
+      background:linear-gradient(135deg,rgba(14,165,233,.10),rgba(34,197,94,.08));
+      box-shadow:0 10px 28px rgba(0,0,0,.16);
+    }
+    .trust-icon{font-size:34px;line-height:1;flex:0 0 auto}
+    .trust-copy{display:flex;flex-direction:column;gap:5px}
+    .trust-copy strong{font-size:16px;color:#38bdf8;letter-spacing:.25px}
+    .trust-copy span{font-size:13px;color:#e2e8f0;line-height:1.45}
+    .trust-copy small{font-size:12px;color:#86efac;font-weight:800}
+    @media(max-width:640px){
+      .trust-banner{align-items:flex-start;padding:14px 15px;gap:11px}
+      .trust-icon{font-size:27px}
+      .trust-copy strong{font-size:14px}
+      .trust-copy span{font-size:12px}
+    }
+
+  </style>
 <script>
 /* RIFA MASTER - cliente API externo */
 const RIFA_API_URL = 'https://rifa-master-api.cesarcarval77.workers.dev';
@@ -721,11 +744,13 @@ async function apiCall(action, ...args){
     </div>
   </section>
 
-  <section class="stats" style="margin-bottom:18px">
-    <div class="stat"><b id="statTotal">0</b><span>Total</span></div>
-    <div class="stat"><b id="statDisponible">0</b><span>Disponibles</span></div>
-    <div class="stat"><b id="statReservado">0</b><span>Reservados</span></div>
-    <div class="stat"><b id="statVendido">0</b><span>Vendidos</span></div>
+  <section class="trust-banner" style="margin-bottom:18px">
+    <div class="trust-icon">🎥</div>
+    <div class="trust-copy">
+      <strong>SORTEO EN VIVO Y TRANSPARENTE</strong>
+      <span>El sorteo se realizará en vivo y quedará grabado para que todos los participantes puedan verificar el resultado.</span>
+      <small>Tu número participa, tú puedes verlo. ¡Mucha suerte! 🍀</small>
+    </div>
   </section>
 
   <main class="layout">
@@ -1609,19 +1634,9 @@ async function apiCall(action, ...args){
   }
 
   function actualizarEstadisticas(stats){
-    if(!stats) return;
-
-    document.getElementById('statTotal').textContent =
-      Number(stats.total || 0).toLocaleString('es-EC');
-
-    document.getElementById('statDisponible').textContent =
-      Number(stats.disponibles || 0).toLocaleString('es-EC');
-
-    document.getElementById('statReservado').textContent =
-      Number(stats.reservados || 0).toLocaleString('es-EC');
-
-    document.getElementById('statVendido').textContent =
-      Number(stats.vendidos || 0).toLocaleString('es-EC');
+    // Los contadores públicos fueron retirados.
+    // Conservamos la función para no alterar el flujo de carga existente.
+    return;
   }
 
   function filtrarNumeros(){
