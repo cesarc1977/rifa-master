@@ -847,13 +847,10 @@ async function apiCall(action, ...args){
           </label>
         </div>
 
-        <div class="bank-info show" id="bankInfo">
-          <strong>Datos para transferencia</strong>
+        <div class="bank-info" id="bankInfo" style="display:none">
+          <strong>Transferencia bancaria</strong>
           <div id="bankDetails" style="margin-top:5px">
-            Cargando datos de cuenta...
-          </div>
-          <div style="margin-top:7px">
-            Después de reservar podrás enviar tu comprobante.
+            Los datos bancarios se mostrarán únicamente después de reservar.
           </div>
         </div>
 
@@ -883,10 +880,15 @@ async function apiCall(action, ...args){
       </div>
 
       <div id="proofPanel" class="proof-panel">
-        <div style="font-weight:800;color:#e2e8f0">Enviar comprobante de transferencia</div>
-        <div style="margin-top:5px;font-size:12px;color:#94a3b8">PDF, JPG, PNG o WEBP · máximo 5 MB</div>
-        <input id="proofFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" style="margin-top:10px">
-        <button id="proofBtn" class="proof-btn" type="button" onclick="enviarComprobante()">Enviar comprobante</button>
+        <div style="font-weight:900;color:#e2e8f0">🏦 Selecciona el banco para transferir</div>
+        <div style="margin-top:5px;font-size:12px;color:#94a3b8">
+          Los datos aparecen después de reservar. El comprobante se envía por WhatsApp; no se sube desde esta página.
+        </div>
+        <div id="postReserveBanks" style="margin-top:12px"></div>
+        <div id="selectedBankDetails" class="bank-info" style="margin-top:10px"></div>
+        <button id="whatsappProofBtn" class="proof-btn" type="button" onclick="enviarComprobanteWhatsApp()" disabled>
+          📲 Enviar comprobante por WhatsApp
+        </button>
         <div id="proofStatus" class="proof-status"></div>
       </div>
     </aside>
@@ -917,6 +919,9 @@ async function apiCall(action, ...args){
   let numerosReservaEnCurso = new Set();
   let countdownTimer = null;
   let metodoPagoUltimo = 'TRANSFERENCIA';
+  let cuentasPostReserva = [];
+  let bancoSeleccionadoIndice = -1;
+  let whatsappPostReserva = '';
 
   // Actualización automática de disponibilidad.
   const INTERVALO_ACTUALIZACION_NUMEROS = 20000;
@@ -1136,40 +1141,10 @@ async function apiCall(action, ...args){
         ? `<span class="product-image-badge">PREMIO</span><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(rifa.premio || 'Producto de la rifa')}" loading="eager">`
         : '<div class="product-image-empty">El administrador aún no ha configurado la imagen del producto.</div>';
     }
-    const cuentas = Array.isArray(config.cuentas)
-      ? config.cuentas
-      : [];
-
-    // Compatibilidad con versiones anteriores que devolvían una sola cuenta.
-    const cuentasMostrar = cuentas.length
-      ? cuentas
-      : (config.banco || config.numeroCuenta || config.titularCuenta)
-        ? [{
-            alias: 'Cuenta principal',
-            banco: config.banco || '',
-            tipoCuenta: config.tipoCuenta || '',
-            numeroCuenta: config.numeroCuenta || '',
-            titularCuenta: config.titularCuenta || '',
-            identificacionTitular: ''
-          }]
-        : [];
-
-    const bankHtml = cuentasMostrar.map((cuenta, index) => {
-      let detalle = '';
-      if(cuenta.banco) detalle += `<b>Banco:</b> ${escapeHtml(cuenta.banco)}<br>`;
-      if(cuenta.tipoCuenta) detalle += `<b>Tipo:</b> ${escapeHtml(cuenta.tipoCuenta)}<br>`;
-      if(cuenta.numeroCuenta) detalle += `<b>Número:</b> ${escapeHtml(cuenta.numeroCuenta)}<br>`;
-      if(cuenta.titularCuenta) detalle += `<b>Titular:</b> ${escapeHtml(cuenta.titularCuenta)}<br>`;
-      if(cuenta.identificacionTitular) detalle += `<b>Identificación:</b> ${escapeHtml(cuenta.identificacionTitular)}`;
-      return `<div class="bank-card">
-        <strong>🏦 ${escapeHtml(cuenta.alias || ('Cuenta ' + (index + 1)))}</strong>
-        <div>${detalle || 'Datos bancarios no configurados.'}</div>
-      </div>`;
-    }).join('');
-
-    document.getElementById('bankDetails').innerHTML = bankHtml
-      ? `<div class="bank-list">${bankHtml}</div><div class="bank-account-note">Puedes transferir a cualquiera de estas cuentas.</div>`
-      : 'Los datos bancarios serán configurados por el administrador.';
+    // Seguridad: las cuentas bancarias no se reciben ni se muestran
+    // durante la carga pública de la rifa. Solo aparecen después de reservar.
+    const bankDetails=document.getElementById('bankDetails');
+    if(bankDetails) bankDetails.textContent='Los datos bancarios se mostrarán únicamente después de reservar.';
 
     actualizarEstadisticas(respuesta.estadisticas);
     iniciarCuentaRegresiva(rifa);
@@ -1358,12 +1333,11 @@ async function apiCall(action, ...args){
         metodo === 'EFECTIVO'
       );
 
-    document
-      .getElementById('bankInfo')
-      .classList.toggle(
-        'show',
-        metodo === 'TRANSFERENCIA'
-      );
+    const bankInfo=document.getElementById('bankInfo');
+    if(bankInfo){
+      bankInfo.classList.remove('show');
+      bankInfo.style.display='none';
+    }
   }
 
   function enviarReserva(event){
@@ -1476,11 +1450,21 @@ async function apiCall(action, ...args){
     metodoPagoUltimo = metodoReserva;
 
     const proofPanel = document.getElementById('proofPanel');
-    proofPanel.classList.toggle('show', metodoReserva === 'TRANSFERENCIA');
-    document.getElementById('proofStatus').textContent =
-      metodoReserva === 'TRANSFERENCIA'
-        ? 'Adjunta el comprobante para que el administrador pueda validar tu pago.'
-        : 'Pago en efectivo: espera la confirmación del operador.';
+    if(proofPanel) proofPanel.classList.toggle('show', metodoReserva === 'TRANSFERENCIA');
+
+    cuentasPostReserva = (respuesta.pagoPostReserva && Array.isArray(respuesta.pagoPostReserva.cuentas))
+      ? respuesta.pagoPostReserva.cuentas : [];
+    whatsappPostReserva = String((respuesta.pagoPostReserva && respuesta.pagoPostReserva.whatsapp) || '');
+    bancoSeleccionadoIndice = -1;
+
+    if(metodoReserva === 'TRANSFERENCIA'){
+      renderBancosPostReserva();
+      document.getElementById('proofStatus').textContent =
+        'Selecciona uno de los bancos. Luego podrás enviar el comprobante por WhatsApp.';
+    }else{
+      document.getElementById('proofStatus').textContent =
+        'Pago en efectivo: espera la confirmación del operador.';
+    }
 
     document.getElementById('reservationForm')
       .reset();
@@ -1516,106 +1500,112 @@ async function apiCall(action, ...args){
         cargarNumeros();
       }, 100);
     }else{
-      // TRANSFERENCIA conserva idPedidoActual hasta que se suba el comprobante.
+      // TRANSFERENCIA conserva idPedidoActual hasta elegir banco y abrir WhatsApp.
       cargarNumeros();
     }
   }
 
-  function enviarComprobante(){
+  function renderBancosPostReserva(){
+    const box=document.getElementById('postReserveBanks');
+    const detail=document.getElementById('selectedBankDetails');
+    const btn=document.getElementById('whatsappProofBtn');
+    if(detail){detail.classList.remove('show');detail.innerHTML='';}
+    if(btn) btn.disabled=true;
+
+    if(!cuentasPostReserva.length){
+      if(box) box.innerHTML='<div class="notice show error">No hay cuentas bancarias disponibles. Contacta al administrador.</div>';
+      return;
+    }
+
+    box.innerHTML=cuentasPostReserva.map((c,idx)=>`
+      <button type="button" class="payment-option" style="width:100%;margin-bottom:8px"
+        onclick="seleccionarBancoPostReserva(${idx})">
+        🏦 ${escapeHtml(c.alias || c.banco || ('Banco '+(idx+1)))}
+      </button>`).join('');
+  }
+
+  function seleccionarBancoPostReserva(idx){
+    const c=cuentasPostReserva[idx];
+    if(!c || !idPedidoActual) return;
+    bancoSeleccionadoIndice=idx;
+
+    const detail=document.getElementById('selectedBankDetails');
+    detail.innerHTML=`
+      <strong>${escapeHtml(c.alias || c.banco || 'Cuenta bancaria')}</strong><br>
+      ${c.banco?`<b>Banco:</b> ${escapeHtml(c.banco)}<br>`:''}
+      ${c.tipoCuenta?`<b>Tipo:</b> ${escapeHtml(c.tipoCuenta)}<br>`:''}
+      ${c.numeroCuenta?`<b>Número:</b> ${escapeHtml(c.numeroCuenta)}<br>`:''}
+      ${c.titularCuenta?`<b>Titular:</b> ${escapeHtml(c.titularCuenta)}<br>`:''}
+      ${c.identificacionTitular?`<b>Identificación:</b> ${escapeHtml(c.identificacionTitular)}`:''}`;
+    detail.classList.add('show');
+
+    const btn=document.getElementById('whatsappProofBtn');
+    if(btn) btn.disabled=false;
+    document.getElementById('proofStatus').textContent =
+      'Realiza la transferencia y luego pulsa el botón para enviar el comprobante por WhatsApp.';
+  }
+
+  async function enviarComprobanteWhatsApp(){
     if(!idPedidoActual){
-      mostrarAviso('No existe un pedido activo.', true);
+      mostrarAviso('No existe un pedido activo.',true);
+      return;
+    }
+    if(bancoSeleccionadoIndice<0){
+      document.getElementById('proofStatus').textContent='Selecciona primero el banco.';
       return;
     }
 
-    const input = document.getElementById('proofFile');
-    const file = input.files && input.files[0];
-    if(!file){
-      document.getElementById('proofStatus').textContent = 'Selecciona un archivo.';
-      return;
+    const btn=document.getElementById('whatsappProofBtn');
+    btn.disabled=true;
+    btn.textContent='Preparando WhatsApp...';
+
+    try{
+      const r=await apiCall('confirmarBancoTransferencia',idPedidoActual,bancoSeleccionadoIndice);
+      if(!r || !r.ok) throw new Error('No se pudo registrar el banco seleccionado.');
+
+      const url=r.urlWhatsApp || (
+        r.whatsapp
+          ? `https://wa.me/${String(r.whatsapp).replace(/\D/g,'')}?text=${encodeURIComponent(r.mensajeWhatsApp||'')}`
+          : ''
+      );
+      if(!url) throw new Error('El número de WhatsApp no está configurado.');
+
+      window.open(url,'_blank','noopener');
+
+      document.getElementById('proofStatus').textContent =
+        'WhatsApp abierto. Adjunta allí la foto o PDF del comprobante. El administrador lo registrará en el sistema.';
+
+      mostrarAviso(
+        'Reserva creada. Envía el comprobante por WhatsApp. Ya puedes iniciar otra venta sin perder esta reserva.',
+        false
+      );
+
+      // Liberamos solamente la interfaz local. El pedido sigue reservado/PENDIENTE.
+      idPedidoActual='';
+      numerosPedidoActual.clear();
+      numerosReservaEnCurso.clear();
+      seleccionados.clear();
+      cuentasPostReserva=[];
+      bancoSeleccionadoIndice=-1;
+      whatsappPostReserva='';
+
+      setTimeout(()=>{
+        const form=document.getElementById('reservationForm');
+        if(form) form.reset();
+        const panel=document.getElementById('proofPanel');
+        if(panel) panel.classList.remove('show');
+        const result=document.getElementById('orderResult');
+        if(result) result.classList.remove('show');
+        metodoPagoUltimo='TRANSFERENCIA';
+        cambiarPago();
+        actualizarSeleccion();
+        cargarNumeros();
+      },150);
+    }catch(e){
+      document.getElementById('proofStatus').textContent=obtenerMensajeError(e);
+      btn.disabled=false;
+      btn.textContent='📲 Enviar comprobante por WhatsApp';
     }
-    if(file.size > 5 * 1024 * 1024){
-      document.getElementById('proofStatus').textContent = 'El archivo supera el límite de 5 MB.';
-      return;
-    }
-
-    const allowed = ['application/pdf','image/jpeg','image/png','image/webp'];
-    if(!allowed.includes(file.type)) {
-      document.getElementById('proofStatus').textContent = 'Formato no permitido. Usa PDF, JPG, PNG o WEBP.';
-      return;
-    }
-
-    const btn = document.getElementById('proofBtn');
-    btn.disabled = true;
-    btn.textContent = 'Enviando...';
-    document.getElementById('proofStatus').textContent = 'Subiendo comprobante...';
-
-    const reader = new FileReader();
-    reader.onload = function(){
-      try {
-        const base64 = String(reader.result).split(',')[1] || '';
-        apiCall('subirComprobante', idPedidoActual, file.name, file.type, base64).then(res => {
-            // El comprobante ya quedó asociado al pedido anterior y el pago
-            // permanece EN_REVISION en el servidor. Liberamos solamente la
-            // interfaz local para que el operador pueda iniciar otra venta.
-            mostrarAviso(
-              'Comprobante enviado correctamente. El pago quedó en revisión y ya puedes realizar una nueva venta.',
-              false
-            );
-
-            idPedidoActual = '';
-            numerosPedidoActual.clear();
-            numerosReservaEnCurso.clear();
-            seleccionados.clear();
-
-            const orderResult = document.getElementById('orderResult');
-            if(orderResult) orderResult.classList.remove('show');
-
-            const orderCode = document.getElementById('orderCode');
-            if(orderCode) orderCode.textContent = '—';
-
-            const orderMessage = document.getElementById('orderMessage');
-            if(orderMessage) orderMessage.textContent = '';
-
-            // Limpiar comprobante anterior.
-            input.value = '';
-            input.disabled = false;
-            btn.disabled = false;
-            btn.textContent = 'Enviar comprobante';
-
-            const proofStatus = document.getElementById('proofStatus');
-            if(proofStatus) proofStatus.textContent = '';
-
-            const proofPanel = document.getElementById('proofPanel');
-            if(proofPanel) proofPanel.classList.remove('show');
-
-            // Limpiar datos del cliente anterior y preparar una venta nueva.
-            const form = document.getElementById('reservationForm');
-            if(form) form.reset();
-
-            metodoPagoUltimo = 'TRANSFERENCIA';
-            cambiarPago();
-            actualizarSeleccion();
-
-            // El número anterior seguirá reservado/en revisión porque aquí
-            // no modificamos el backend. Solo refrescamos la cuadrícula.
-            cargarNumeros();
-          }).catch(err => {
-            btn.disabled = false;
-            btn.textContent = 'Enviar comprobante';
-            document.getElementById('proofStatus').textContent = obtenerMensajeError(err);
-          });
-      } catch(e) {
-        btn.disabled = false;
-        btn.textContent = 'Enviar comprobante';
-        document.getElementById('proofStatus').textContent = e.message || 'Error al preparar el archivo.';
-      }
-    };
-    reader.onerror = function(){
-      btn.disabled = false;
-      btn.textContent = 'Enviar comprobante';
-      document.getElementById('proofStatus').textContent = 'No se pudo leer el archivo.';
-    };
-    reader.readAsDataURL(file);
   }
 
   function actualizarEstadisticas(stats){
