@@ -426,12 +426,20 @@ async function loadPayments(){
         <td>${esc(p.metodo)}</td>
         <td>${money(p.monto)}</td>
         <td>${status(p.estado)}</td>
-        <td>${p.comprobante?`<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`:'—'}</td>
+        <td>${p.comprobante
+          ? `<button class="btn ghost small" onclick="viewProof('${esc(p.idPago)}')">Ver archivo</button>`
+          : (String(p.metodo||'').toUpperCase()==='TRANSFERENCIA'
+              ? `<button class="btn ghost small" onclick="openProofUpload('${esc(p.idPago)}','${esc(p.idPedido)}')">📎 Subir comprobante</button>`
+              : '—')}</td>
         <td>${esc(p.fechaPago)}</td>
         <td><div class="actions">${
           ok
           ? `<button class="btn primary small" onclick="generateTicket('${esc(p.idPedido)}')">🎟️ Boleto PDF</button>`
-          : `<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button>
+          : `${p.comprobante
+                ? `<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button>`
+                : (String(p.metodo||'').toUpperCase()==='EFECTIVO'
+                    ? `<button class="btn primary small" onclick="approve('${esc(p.idPago)}')">Aprobar</button>`
+                    : '')}
              <button class="btn danger small" onclick="reject('${esc(p.idPago)}')">Rechazar</button>`
         }</div></td>
       </tr>`;
@@ -506,6 +514,55 @@ async function reject(id){
     await loadPayments(); await loadDashboard();
   }catch(e){toast(err(e))}
 }
+function openProofUpload(idPago,idPedido){
+  openModal(`
+    <h3>📎 Registrar comprobante</h3>
+    <p class="sub">Pedido: <b>${esc(idPedido)}</b></p>
+    <div class="notice">El cliente envía el comprobante por WhatsApp. Descárgalo en tu dispositivo y súbelo aquí para dejarlo registrado en el sistema.</div>
+    <div class="field" style="margin-top:14px">
+      <label>Archivo (PDF, JPG, PNG o WEBP · máximo 5 MB)</label>
+      <input id="adminProofFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp">
+    </div>
+    <div class="actions" style="margin-top:14px">
+      <button id="adminProofUploadBtn" class="btn primary" onclick="uploadAdminProof('${esc(idPago)}')">Subir y dejar EN REVISIÓN</button>
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+    </div>
+    <div id="adminProofStatus" class="sub" style="margin-top:10px"></div>
+  `);
+}
+
+async function uploadAdminProof(idPago){
+  const input=$('adminProofFile');
+  const file=input && input.files && input.files[0];
+  const statusBox=$('adminProofStatus');
+  const btn=$('adminProofUploadBtn');
+
+  if(!file){if(statusBox)statusBox.textContent='Selecciona el comprobante.';return;}
+  if(file.size>5*1024*1024){if(statusBox)statusBox.textContent='El archivo supera 5 MB.';return;}
+  const allowed=['application/pdf','image/jpeg','image/png','image/webp'];
+  if(!allowed.includes(file.type)){if(statusBox)statusBox.textContent='Formato no permitido.';return;}
+
+  if(btn){btn.disabled=true;btn.textContent='Subiendo...';}
+  if(statusBox)statusBox.textContent='Registrando comprobante privado...';
+
+  try{
+    const base64=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');
+      reader.onerror=()=>reject(new Error('No se pudo leer el archivo.'));
+      reader.readAsDataURL(file);
+    });
+    const r=await run('subirComprobanteAdmin',token,idPago,file.name,file.type,base64);
+    toast(r.mensaje||'Comprobante registrado.');
+    closeModal();
+    await loadPayments();
+    await loadDashboard();
+  }catch(e){
+    if(statusBox)statusBox.textContent=err(e);
+    if(btn){btn.disabled=false;btn.textContent='Subir y dejar EN REVISIÓN';}
+  }
+}
+
 async function viewProof(id){
   try{
     const r=await run('obtenerComprobanteAdmin',token,id);
